@@ -1,0 +1,417 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+唯品会商品搜索工具
+支持搜索商品并获取详细信息
+"""
+
+import sys
+import json
+import urllib.request
+import urllib.parse
+from pathlib import Path
+from typing import Dict, List, Any, Optional
+
+
+def load_login_tokens() -> Optional[Dict[str, Any]]:
+    """
+    加载登录态
+    
+    Returns:
+        登录态字典，包含cookies等信息；如果未登录返回None
+    """
+    token_file = Path.home() / ".vipshop-user-login" / "tokens.json"
+    
+    if not token_file.exists():
+        return None
+    
+    try:
+        with open(token_file, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        
+        # 检查是否是新格式（包含cookies字段）
+        if data and isinstance(data, dict) and 'cookies' in data:
+            return data
+        return None
+    except Exception as e:
+        sys.stderr.write(f"加载登录态失败: {e}\n")
+        return None
+
+
+def url_encode(text: str) -> str:
+    """URL 编码文本"""
+    return urllib.parse.quote(text)
+
+
+def make_request(url: str, cookies: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
+    """
+    发起 HTTP GET 请求并返回 JSON 响应
+
+    Args:
+        url: 请求URL
+        cookies: 可选的cookie字典
+
+    Returns:
+        JSON响应数据
+    """
+    try:
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'application/json, text/plain, */*',
+            'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+            'Referer': 'https://www.vip.com/',
+            'Origin': 'https://www.vip.com'
+        }
+
+        req = urllib.request.Request(url, headers=headers)
+
+        # 如果有cookies，构建Cookie头
+        if cookies:
+            cookie_str = '; '.join([f'{k}={v}' for k, v in cookies.items()])
+            req.add_header('Cookie', cookie_str)
+
+        with urllib.request.urlopen(req, timeout=30) as response:
+            data = response.read().decode('utf-8')
+            return json.loads(data)
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def search_products(keyword: str, page_offset: int = 0, price_min: Optional[int] = None, price_max: Optional[int] = None) -> Dict[str, Any]:
+    """
+    搜索商品 - 获取商品ID列表
+
+    Args:
+        keyword: 搜索关键词
+        page_offset: 分页偏移量，默认为0
+        price_min: 价格区间最小值，可选
+        price_max: 价格区间最大值，可选
+
+    Returns:
+        搜索结果，包含商品ID列表和总数
+    """
+    base_url = "https://mapi-pc.vip.com/vips-mobile/rest/shopping/skill/search/product/rank"
+
+    # 加载登录态
+    login_data = load_login_tokens()
+    cookies = {}
+    mars_cid = '1774322058326_d46d9ac188ea1b67c2092ccb067b1b54'  # 默认值
+
+    if login_data:
+        login_cookies = login_data.get('cookies', {})
+        if 'PASSPORT_ACCESS_TOKEN' in login_cookies:
+            cookies['PASSPORT_ACCESS_TOKEN'] = login_cookies['PASSPORT_ACCESS_TOKEN']
+        if 'mars_cid' in login_cookies:
+            mars_cid = login_cookies['mars_cid']
+
+    params = {
+        'keyword': keyword,
+        'app_name': 'shop_pc',
+        'app_version': '4.0',
+        'warehouse': 'VIP_NH',
+        'fdc_area_id': '944101105114',
+        'client': 'pc',
+        'mobile_platform': '1',
+        'province_id': '104104',
+        'api_key': 'dafe77e7486f46eca2e17a256d3ce6b5',
+        'mars_cid': mars_cid,
+        'wap_consumer': 'c',
+        'is_default_area': '0',
+        'standby_id': 'nature',
+        'pageOffset': str(page_offset),
+        'channelId': '1',
+        'batchSize': '20'
+    }
+
+    # 添加价格区间参数
+    if price_min is not None:
+        params['priceMin'] = str(price_min)
+    if price_max is not None:
+        params['priceMax'] = str(price_max)
+
+    url = f"{base_url}?{urllib.parse.urlencode(params)}"
+    response = make_request(url, cookies if cookies else None)
+
+    if "error" in response:
+        return {"error": f"搜索请求失败: {response['error']}"}
+
+    if response.get("code") != 1:
+        # 检查是否是token过期
+        if response.get("code") == 11000:
+            return {"error": "token_expired", "message": response.get("msg", "token expired")}
+        return {"error": f"搜索接口错误，code={response.get('code')}"}
+
+    data = response.get("data", {})
+    total = data.get("total", 0)
+    products = data.get("products", [])
+
+    # 提取所有商品ID
+    product_ids = [p.get("pid") for p in products if p.get("pid")]
+
+    return {
+        "total": total,
+        "product_ids": product_ids,
+        "products": products
+    }
+
+
+def get_product_details(product_ids: List[str]) -> Dict[str, Any]:
+    """
+    获取商品详细信息
+    
+    Args:
+        product_ids: 商品ID列表
+        
+    Returns:
+        商品详细信息
+    """
+    if not product_ids:
+        return {"error": "没有商品ID"}
+    
+    base_url = "https://mapi-pc.vip.com/vips-mobile/rest/shopping/skill/product/module/list/v2"
+    
+    # 加载登录态
+    login_data = load_login_tokens()
+    cookies = {}
+    mars_cid = '1774322058326_d46d9ac188ea1b67c2092ccb067b1b54'  # 默认值
+    
+    if login_data:
+        login_cookies = login_data.get('cookies', {})
+        if 'PASSPORT_ACCESS_TOKEN' in login_cookies:
+            cookies['PASSPORT_ACCESS_TOKEN'] = login_cookies['PASSPORT_ACCESS_TOKEN']
+        if 'mars_cid' in login_cookies:
+            mars_cid = login_cookies['mars_cid']
+    
+    params = {
+        'app_name': 'shop_pc',
+        'app_version': '4.0',
+        'warehouse': 'VIP_NH',
+        'fdc_area_id': '944101105114',
+        'client': 'pc',
+        'mobile_platform': '1',
+        'province_id': '104104',
+        'api_key': 'dafe77e7486f46eca2e17a256d3ce6b5',
+        'mars_cid': mars_cid,
+        'is_default_area': '0',
+        'productIds': ','.join(product_ids),
+        'scene': 'search',
+        'standby_id': 'nature',
+        'extParams': '{"stdSizeVids":"","preheatTipsVer":"3","couponVer":"v2","exclusivePrice":"1","iconSpec":"2x","ic2label":1,"superHot":1,"bigBrand":"1"}'
+    }
+
+    url = f"{base_url}?{urllib.parse.urlencode(params)}"
+    response = make_request(url, cookies if cookies else None)
+    
+    if "error" in response:
+        return {"error": f"商品详情请求失败: {response['error']}"}
+    
+    if response.get("code") != 1:
+        # 检查是否是token过期
+        if response.get("code") == 11000:
+            return {"error": "token_expired", "message": response.get("msg", "token expired")}
+        return {"error": f"商品详情接口错误，code={response.get('code')}"}
+    
+    return response.get("data", {})
+
+
+def format_product_detail(product: Dict[str, Any], index: int) -> Dict[str, Any]:
+    """
+    格式化单个商品详情为字典结构
+
+    Args:
+        product: 商品数据
+        index: 商品序号
+
+    Returns:
+        商品信息字典
+    """
+    product_id = product.get("productId", "")
+    brand_id = product.get("brandId", "")
+    title = product.get("title", "")
+    price = product.get("price", {})
+
+    # 构建商品链接
+    product_link = f"https://detail.vip.com/detail-{brand_id}-{product_id}.html"
+
+    # 提取价格信息
+    sale_price = price.get("salePrice", "")
+    price_label = price.get("priceLabel", "价格")
+    market_price = price.get("marketPrice", "")
+    sale_discount = price.get("saleDiscount", "")
+    sell_tips = price.get("sellTips", "")
+    brand = product.get("brandShowName", "")
+
+    # 提取图片信息
+    small_image = product.get("smallImage", "")
+    square_image = product.get("squareImage", "")
+
+    # 返回结构化数据
+    return {
+        "序号": index,
+        "商品ID": product_id,
+        "商品链接": product_link,
+        "商品名": title,
+        "商品图片": small_image or square_image,
+        "价格": sale_price,
+        "原价": market_price,
+        "折扣": sale_discount,
+        "卖点": sell_tips,
+        "品牌": brand
+    }
+
+
+def search_vipshop(keyword: str, page_offset: int = 0, price_min: Optional[int] = None, price_max: Optional[int] = None) -> Dict[str, Any]:
+    """
+    主函数：搜索唯品会商品
+
+    Args:
+        keyword: 搜索关键词
+        page_offset: 分页偏移量，默认为0
+        price_min: 价格区间最小值，可选
+        price_max: 价格区间最大值，可选
+
+    Returns:
+        JSON格式的搜索结果
+    """
+    if not keyword:
+        return {"error": "请提供搜索关键词"}
+
+    # 检查登录态
+    login_data = load_login_tokens()
+    if login_data is None:
+        return {
+            "error": "login_required",
+            "message": "需要登录唯品会账户",
+            "action": "请先登录唯品会账户后再搜索商品"
+        }
+
+    # 步骤1: 搜索商品
+    search_result = search_products(keyword, page_offset, price_min, price_max)
+
+    if "error" in search_result:
+        # 检查是否是token过期
+        if search_result.get("error") == "token_expired":
+            return {"error": "token_expired", "message": "登录已过期，请重新登录"}
+        return {"error": f"接口调用失败：{search_result['error']}"}
+
+    total = search_result.get("total", 0)
+    product_ids = search_result.get("product_ids", [])
+
+    if total == 0:
+        return {"error": "未找到相关商品"}
+
+    # 步骤2: 获取商品详情
+    detail_result = get_product_details(product_ids)
+
+    if "error" in detail_result:
+        # 检查是否是token过期
+        if detail_result.get("error") == "token_expired":
+            return {"error": "token_expired", "message": "登录已过期，请重新登录"}
+        # 详情接口失败，降级为返回商品ID
+        return {
+            "error": f"商品详情接口失败：{detail_result['error']}",
+            "总数": total,
+            "商品ID列表": product_ids
+        }
+
+    products = detail_result.get("products", [])
+
+    if not products:
+        return {
+            "error": "未获取到商品详情",
+            "总数": total,
+            "商品ID列表": product_ids
+        }
+
+    # 步骤3: 格式化为结构化数据
+    batch_size = 20
+    current_page = page_offset // batch_size + 1
+    total_pages = (total + batch_size - 1) // batch_size
+    formatted_products = []
+    for i, product in enumerate(products, page_offset + 1):
+        formatted_products.append(format_product_detail(product, i))
+
+    result = {
+        "搜索关键词": keyword,
+        "总数": total,
+        "当前页": current_page,
+        "总页数": total_pages,
+        "当前展示": len(products),
+        "每页数量": batch_size,
+        "当前偏移": page_offset,
+        "商品列表": formatted_products
+    }
+
+    # 添加价格区间信息（如果有）
+    if price_min is not None or price_max is not None:
+        price_range = ""
+        if price_min is not None:
+            price_range += f"¥{price_min}"
+        else:
+            price_range += "不限"
+        price_range += "-"
+        if price_max is not None:
+            price_range += f"¥{price_max}"
+        else:
+            price_range += "不限"
+        result["价格区间"] = price_range
+
+    return result
+
+
+def main():
+    """命令行入口 - 输出JSON格式数据"""
+    if len(sys.argv) < 2:
+        sys.stderr.write("用法: python search.py <搜索关键词> [--page-offset <偏移量>] [--price-min <最小价>] [--price-max <最大价>]\n")
+        sys.stderr.write("示例: python search.py 连衣裙\n")
+        sys.stderr.write("示例: python search.py 连衣裙 --page-offset 20\n")
+        sys.stderr.write("示例: python search.py 连衣裙 -p 40\n")
+        sys.stderr.write("示例: python search.py 连衣裙 --price-min 100 --price-max 300\n")
+        sys.stderr.write("示例: python search.py 连衣裙 -p 20 --price-min 50 --price-max 200\n")
+        sys.exit(1)
+
+    # 解析参数
+    args = sys.argv[1:]
+    keyword = ""
+    page_offset = 0
+    price_min = None
+    price_max = None
+
+    i = 0
+    while i < len(args):
+        if args[i] in ['--page-offset', '-p']:
+            if i + 1 < len(args):
+                page_offset = int(args[i + 1])
+                i += 2
+            else:
+                sys.stderr.write("错误: --page-offset 需要一个数值参数\n")
+                sys.exit(1)
+        elif args[i] == '--price-min':
+            if i + 1 < len(args):
+                price_min = int(args[i + 1])
+                i += 2
+            else:
+                sys.stderr.write("错误: --price-min 需要一个数值参数\n")
+                sys.exit(1)
+        elif args[i] == '--price-max':
+            if i + 1 < len(args):
+                price_max = int(args[i + 1])
+                i += 2
+            else:
+                sys.stderr.write("错误: --price-max 需要一个数值参数\n")
+                sys.exit(1)
+        else:
+            if keyword:
+                keyword += " " + args[i]
+            else:
+                keyword = args[i]
+            i += 1
+
+    result = search_vipshop(keyword, page_offset, price_min, price_max)
+
+    # 输出JSON格式数据，确保中文正常显示
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+
+
+if __name__ == "__main__":
+    main()
