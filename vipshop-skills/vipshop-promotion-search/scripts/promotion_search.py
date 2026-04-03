@@ -12,12 +12,13 @@ from pathlib import Path
 from typing import Dict, List, Any, Optional
 
 
-def make_request(url: str, post_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+def make_request(url: str, cookies: Optional[Dict[str, str]] = None, post_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """
     发起 HTTP POST 请求并返回 JSON 响应
 
     Args:
         url: 请求URL
+        cookies: 可选的cookie字典
         post_data: 可选的POST数据字典
 
     Returns:
@@ -30,6 +31,11 @@ def make_request(url: str, post_data: Optional[Dict[str, Any]] = None) -> Dict[s
             'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
             'Content-Type': 'application/json'
         }
+
+        # 添加 Cookie 头
+        if cookies:
+            cookie_str = '; '.join([f'{k}={v}' for k, v in cookies.items()])
+            headers['Cookie'] = cookie_str
 
         encoded_data = None
         if post_data is not None:
@@ -100,12 +106,12 @@ def analyze_activities(act_list: List[Dict[str, Any]]) -> Dict[str, Any]:
     return result
 
 
-def check_login_status() -> Optional[Dict[str, Any]]:
+def load_login_tokens() -> Optional[Dict[str, Any]]:
     """
-    检查用户是否已登录唯品会
-
+    加载登录态
+    
     Returns:
-        登录数据字典，未登录返回None
+        登录态字典，包含cookies等信息；如果未登录返回None
     """
     token_file = Path.home() / ".vipshop-user-login" / "tokens.json"
     
@@ -115,20 +121,13 @@ def check_login_status() -> Optional[Dict[str, Any]]:
     try:
         with open(token_file, 'r', encoding='utf-8') as f:
             data = json.load(f)
-            
-        # 检查是否有 cookies 且不为空
-        cookies = data.get("cookies", {})
-        if not cookies:
-            return None
-            
-        # 检查是否过期（如果有过期时间字段）
-        if "expires_at" in data:
-            import time
-            if time.time() > data["expires_at"]:
-                return None
         
-        return data
-    except Exception:
+        # 检查是否是新格式（包含cookies字段）
+        if data and isinstance(data, dict) and 'cookies' in data:
+            return data
+        return None
+    except Exception as e:
+        sys.stderr.write(f"加载登录态失败: {e}\n")
         return None
 
 
@@ -140,19 +139,25 @@ def get_promotions() -> Dict[str, Any]:
         JSON格式的促销活动信息
     """
     # 检查登录状态
-    login_data = check_login_status()
+    login_data = load_login_tokens()
     if login_data is None:
         return {
             "error": "login_required",
             "message": "需要登录唯品会账户",
             "action": "请先登录唯品会账户后再查询促销活动"
         }
-    
+
+    # 提取 cookies
+    cookies = {}
+    login_cookies = login_data.get('cookies', {})
+    if 'PASSPORT_ACCESS_TOKEN' in login_cookies:
+        cookies['PASSPORT_ACCESS_TOKEN'] = login_cookies['PASSPORT_ACCESS_TOKEN']
+
     # API 接口
     url = "https://api.union.vip.com/vsp/common/getActListForAI"
 
     # 调用接口
-    response = make_request(url, post_data={})
+    response = make_request(url, cookies=cookies, post_data={})
 
     if "error" in response:
         return {"error": f"接口调用失败: {response['error']}"}

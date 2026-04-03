@@ -101,7 +101,7 @@ description: 唯品会（vip.com）商品详情查询技能。当用户想查看
 
 如果 skill 调用不可用，则执行命令（备选方式）：
 ```bash
-cd ../vipshop-user-login/scripts && python3 vip_login.py --blocking
+python3 ../vipshop-user-login/scripts/vip_login.py --blocking
 ```
 
 **步骤 1.4：等待登录完成**
@@ -136,7 +136,7 @@ python3 scripts/detail.py <product_id>
 1. **不要**只提示用户"需要登录"，而应该立即自动触发登录流程
 2. **不要**等待用户再次请求，而是主动执行以下步骤：
    - 检查并安装 vipshop-user-login SKILL
-   - 自动调用 vipshop-user-login skill（优先）或执行 `python3 vip_login.py --blocking` 触发登录（备选）
+   - 自动调用 vipshop-user-login skill（优先）或执行 `python3 ../vipshop-user-login/scripts/vip_login.py --blocking` 触发登录（备选）
    - 等待用户扫码完成登录
    - 登录成功后自动继续执行商品详情查询
 3. **如果找不到 vipshop-user-login skill**：

@@ -77,12 +77,14 @@ def make_request(url: str, cookies: Optional[Dict[str, str]] = None) -> Dict[str
         return {"error": str(e)}
 
 
-def search_products(keyword: str, page_offset: int = 0, price_min: Optional[int] = None, price_max: Optional[int] = None) -> Dict[str, Any]:
+def search_products(keyword: str, cookies: Dict[str, str], mars_cid: str, page_offset: int = 0, price_min: Optional[int] = None, price_max: Optional[int] = None) -> Dict[str, Any]:
     """
     搜索商品 - 获取商品ID列表
 
     Args:
         keyword: 搜索关键词
+        cookies: 登录态 cookies
+        mars_cid: 设备ID
         page_offset: 分页偏移量，默认为0
         price_min: 价格区间最小值，可选
         price_max: 价格区间最大值，可选
@@ -91,18 +93,6 @@ def search_products(keyword: str, page_offset: int = 0, price_min: Optional[int]
         搜索结果，包含商品ID列表和总数
     """
     base_url = "https://mapi-pc.vip.com/vips-mobile/rest/shopping/skill/search/product/rank"
-
-    # 加载登录态
-    login_data = load_login_tokens()
-    cookies = {}
-    mars_cid = '1774322058326_d46d9ac188ea1b67c2092ccb067b1b54'  # 默认值
-
-    if login_data:
-        login_cookies = login_data.get('cookies', {})
-        if 'PASSPORT_ACCESS_TOKEN' in login_cookies:
-            cookies['PASSPORT_ACCESS_TOKEN'] = login_cookies['PASSPORT_ACCESS_TOKEN']
-        if 'mars_cid' in login_cookies:
-            mars_cid = login_cookies['mars_cid']
 
     params = {
         'keyword': keyword,
@@ -155,33 +145,23 @@ def search_products(keyword: str, page_offset: int = 0, price_min: Optional[int]
     }
 
 
-def get_product_details(product_ids: List[str]) -> Dict[str, Any]:
+def get_product_details(product_ids: List[str], cookies: Dict[str, str], mars_cid: str) -> Dict[str, Any]:
     """
     获取商品详细信息
-    
+
     Args:
         product_ids: 商品ID列表
-        
+        cookies: 登录态 cookies
+        mars_cid: 设备ID
+
     Returns:
         商品详细信息
     """
     if not product_ids:
         return {"error": "没有商品ID"}
-    
+
     base_url = "https://mapi-pc.vip.com/vips-mobile/rest/shopping/skill/product/module/list/v2"
-    
-    # 加载登录态
-    login_data = load_login_tokens()
-    cookies = {}
-    mars_cid = '1774322058326_d46d9ac188ea1b67c2092ccb067b1b54'  # 默认值
-    
-    if login_data:
-        login_cookies = login_data.get('cookies', {})
-        if 'PASSPORT_ACCESS_TOKEN' in login_cookies:
-            cookies['PASSPORT_ACCESS_TOKEN'] = login_cookies['PASSPORT_ACCESS_TOKEN']
-        if 'mars_cid' in login_cookies:
-            mars_cid = login_cookies['mars_cid']
-    
+
     params = {
         'app_name': 'shop_pc',
         'app_version': '4.0',
@@ -231,7 +211,7 @@ def format_product_detail(product: Dict[str, Any], index: int) -> Dict[str, Any]
     price = product.get("price", {})
 
     # 构建商品链接
-    product_link = f"https://detail.vip.com/detail-{brand_id}-{product_id}.html"
+    product_link = f"https://detail.vip.com/detail-{brand_id}-{product_id}.html?f=AIClaw"
 
     # 提取价格信息
     sale_price = price.get("salePrice", "")
@@ -285,8 +265,17 @@ def search_vipshop(keyword: str, page_offset: int = 0, price_min: Optional[int] 
             "action": "请先登录唯品会账户后再搜索商品"
         }
 
+    # 提取登录态信息
+    cookies = {}
+    mars_cid = ''
+    login_cookies = login_data.get('cookies', {})
+    if 'PASSPORT_ACCESS_TOKEN' in login_cookies:
+        cookies['PASSPORT_ACCESS_TOKEN'] = login_cookies['PASSPORT_ACCESS_TOKEN']
+    if 'mars_cid' in login_cookies:
+        mars_cid = login_cookies['mars_cid']
+
     # 步骤1: 搜索商品
-    search_result = search_products(keyword, page_offset, price_min, price_max)
+    search_result = search_products(keyword, cookies, mars_cid, page_offset, price_min, price_max)
 
     if "error" in search_result:
         # 检查是否是token过期
@@ -301,7 +290,7 @@ def search_vipshop(keyword: str, page_offset: int = 0, price_min: Optional[int] 
         return {"error": "未找到相关商品"}
 
     # 步骤2: 获取商品详情
-    detail_result = get_product_details(product_ids)
+    detail_result = get_product_details(product_ids, cookies, mars_cid)
 
     if "error" in detail_result:
         # 检查是否是token过期

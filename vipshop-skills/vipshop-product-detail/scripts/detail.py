@@ -84,29 +84,19 @@ def make_request(url: str, cookies: Optional[Dict[str, str]] = None, post_data: 
         return {"error": str(e)}
 
 
-def get_product_main_info(product_id: str) -> Dict[str, Any]:
+def get_product_main_info(product_id: str, cookies: Dict[str, str], mars_cid: str) -> Dict[str, Any]:
     """
     获取商品主信息（使用商品详情主信息接口）
 
     Args:
         product_id: 商品ID
+        cookies: 登录态 cookies
+        mars_cid: 设备ID
 
     Returns:
         商品主信息
     """
     url = "https://mapi-pc.vip.com/vips-mobile/rest/shopping/skill/detail/main/v6"
-
-    # 加载登录态
-    login_data = load_login_tokens()
-    cookies = {}
-    mars_cid = ''  # 使用登录态中的 mars_cid
-
-    if login_data:
-        login_cookies = login_data.get('cookies', {})
-        if 'PASSPORT_ACCESS_TOKEN' in login_cookies:
-            cookies['PASSPORT_ACCESS_TOKEN'] = login_cookies['PASSPORT_ACCESS_TOKEN']
-        if 'mars_cid' in login_cookies:
-            mars_cid = login_cookies['mars_cid']
 
     # POST请求参数
     post_data = {
@@ -152,33 +142,39 @@ def get_product_more_info(product_id: str, main_info: Dict[str, Any]) -> Dict[st
     Returns:
         商品辅助信息
     """
-    return get_product_more_info_v2(product_id, main_info)
+    return get_product_more_info_v2(product_id, main_info, cookies, mars_cid)
 
 
-def get_product_more_info_v2(product_id: str, main_info: Dict[str, Any]) -> Dict[str, Any]:
+def get_product_more_info(product_id: str, main_info: Dict[str, Any], cookies: Dict[str, str], mars_cid: str) -> Dict[str, Any]:
+    """
+    获取商品辅助信息（使用商品详情辅助信息接口）
+
+    Args:
+        product_id: 商品ID
+        main_info: 商品主信息（用于获取moreCtx）
+        cookies: 登录态 cookies
+        mars_cid: 设备ID
+
+    Returns:
+        商品辅助信息
+    """
+    return get_product_more_info_v2(product_id, main_info, cookies, mars_cid)
+
+
+def get_product_more_info_v2(product_id: str, main_info: Dict[str, Any], cookies: Dict[str, str], mars_cid: str) -> Dict[str, Any]:
     """
     获取商品辅助信息 v2（使用商品详情辅助信息接口）
 
     Args:
         product_id: 商品ID
         main_info: 商品主信息（用于获取moreCtx）
+        cookies: 登录态 cookies
+        mars_cid: 设备ID
 
     Returns:
         商品辅助信息
     """
     base_url = "https://mapi-pc.vip.com/vips-mobile/rest/shopping/skill/detail/more/v2"
-
-    # 加载登录态
-    login_data = load_login_tokens()
-    cookies = {}
-    mars_cid = ''  # 使用登录态中的 mars_cid
-
-    if login_data:
-        login_cookies = login_data.get('cookies', {})
-        if 'PASSPORT_ACCESS_TOKEN' in login_cookies:
-            cookies['PASSPORT_ACCESS_TOKEN'] = login_cookies['PASSPORT_ACCESS_TOKEN']
-        if 'mars_cid' in login_cookies:
-            mars_cid = login_cookies['mars_cid']
 
     # 从主信息中获取moreCtx
     more_ctx = main_info.get("moreCtx", "")
@@ -420,9 +416,9 @@ def analyze_product_info(main_info: Dict[str, Any], more_info: Dict[str, Any]) -
         # 9. 链接：拼接PC链接 https://detail.vip.com/detail-${base.brandId}-${productId}.html
         brand_id = base.get("brandId", "")
         if brand_id and product_id:
-            result["链接"] = f"https://detail.vip.com/detail-{brand_id}-{product_id}.html"
+            result["链接"] = f"https://detail.vip.com/detail-{brand_id}-{product_id}.html?f=AIClaw"
 
-    # 8. 精华评论：取前两条（从辅助信息中提取）
+    # 10. 精华评论：取前两条（从辅助信息中提取）
     if more_info and isinstance(more_info, dict) and not more_info.get("error"):
         reputation = more_info.get("reputation", {})
         if reputation and isinstance(reputation, dict):
@@ -468,8 +464,17 @@ def get_product_detail(product_id: str) -> Dict[str, Any]:
             "action": "请先登录唯品会账户后再查询商品详情"
         }
 
+    # 提取登录态信息
+    cookies = {}
+    mars_cid = ''
+    login_cookies = login_data.get('cookies', {})
+    if 'PASSPORT_ACCESS_TOKEN' in login_cookies:
+        cookies['PASSPORT_ACCESS_TOKEN'] = login_cookies['PASSPORT_ACCESS_TOKEN']
+    if 'mars_cid' in login_cookies:
+        mars_cid = login_cookies['mars_cid']
+
     # 步骤1: 获取商品主信息（商品详情）
-    main_result = get_product_main_info(product_id)
+    main_result = get_product_main_info(product_id, cookies, mars_cid)
 
     if "error" in main_result:
         # 检查是否是token过期
@@ -478,7 +483,7 @@ def get_product_detail(product_id: str) -> Dict[str, Any]:
         return {"error": f"获取商品主信息失败：{main_result['error']}"}
 
     # 步骤2: 获取商品辅助信息（价格、属性、标签等）
-    more_result = get_product_more_info(product_id, main_result)
+    more_result = get_product_more_info(product_id, main_result, cookies, mars_cid)
 
     if "error" in more_result:
         # 如果辅助信息获取失败，使用空字典

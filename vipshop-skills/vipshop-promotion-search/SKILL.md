@@ -227,7 +227,7 @@ mini大牌日：8 个
 1. **不要**只提示用户"需要登录"，而应该立即自动触发登录流程
 2. **不要**等待用户再次请求，而是主动执行以下步骤：
    - 检查并安装 vipshop-user-login SKILL
-   - 自动调用 vipshop-user-login skill（优先）或执行 `python3 vip_login.py` 触发登录（备选，相对于项目根目录）
+   - 自动调用 vipshop-user-login skill（优先）或执行 `python3 ../vipshop-user-login/scripts/vip_login.py --blocking` 触发登录（备选）
    - 等待用户扫码完成登录
    - 登录成功后自动继续执行促销活动查询
 3. **如果找不到 vipshop-user-login skill**：
