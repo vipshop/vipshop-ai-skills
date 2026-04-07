@@ -131,20 +131,6 @@ def get_product_main_info(product_id: str, cookies: Dict[str, str], mars_cid: st
     return response.get("data", {})
 
 
-def get_product_more_info(product_id: str, main_info: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    获取商品辅助信息（使用商品详情辅助信息接口）
-
-    Args:
-        product_id: 商品ID
-        main_info: 商品主信息（用于获取moreCtx）
-
-    Returns:
-        商品辅助信息
-    """
-    return get_product_more_info_v2(product_id, main_info, cookies, mars_cid)
-
-
 def get_product_more_info(product_id: str, main_info: Dict[str, Any], cookies: Dict[str, str], mars_cid: str) -> Dict[str, Any]:
     """
     获取商品辅助信息（使用商品详情辅助信息接口）
@@ -216,11 +202,12 @@ def get_product_more_info_v2(product_id: str, main_info: Dict[str, Any], cookies
     return response.get("data", {})
 
 
-def analyze_product_info(main_info: Dict[str, Any], more_info: Dict[str, Any]) -> Dict[str, Any]:
+def analyze_product_info(product_id: str, main_info: Dict[str, Any], more_info: Dict[str, Any]) -> Dict[str, Any]:
     """
     分析总结商品信息
 
     Args:
+        product_id: 商品ID
         main_info: 商品主信息（商品详情）
         more_info: 商品辅助信息（价格、属性、标签等）
 
@@ -234,30 +221,33 @@ def analyze_product_info(main_info: Dict[str, Any], more_info: Dict[str, Any]) -
         # 商品详情主信息接口返回的数据结构
         base = main_info.get("base", {})
         brand_store_info = main_info.get("brandStoreInfo", {})
-        product_id = main_info.get("productId", "")
 
         # 1. 商品图片：取前3张，取 previewImages.imageUrl 字段
+        # 注意：需要先通过 products[product_id].imagesKey 获取图片key，再从 images.groups[key] 获取图片
         image_list = []
-        images = main_info.get("images", {})
-        if images and isinstance(images, dict):
-            groups = images.get("groups", {})
-            if groups and isinstance(groups, dict):
-                # 遍历所有分组，获取预览图
-                for key in groups:
-                    preview_images = groups[key].get("previewImages", [])
-                    if preview_images and isinstance(preview_images, list):
-                        for img in preview_images[:3]:  # 取前3张
-                            if isinstance(img, dict):
-                                img_url = img.get("imageUrl", "")
-                                if img_url:
-                                    # 添加分辨率后缀：在.jpg前添加_300x300_90
-                                    if img_url.endswith('.jpg'):
-                                        img_url = img_url[:-4] + '_200x200_90.jpg'
-                                    image_list.append(img_url)
-                                if len(image_list) >= 3:
-                                    break
-                    if len(image_list) >= 3:
-                        break
+        products = main_info.get("products", {})
+        product_data = products.get(product_id, {}) if products and isinstance(products, dict) else {}
+
+        if product_data and isinstance(product_data, dict):
+            images_key = product_data.get("imagesKey", "")
+            if images_key:
+                images = main_info.get("images", {})
+                if images and isinstance(images, dict):
+                    groups = images.get("groups", {})
+                    if groups and isinstance(groups, dict):
+                        # 根据 imagesKey 获取对应的图片组
+                        product_group = groups.get(images_key, {})
+                        if product_group and isinstance(product_group, dict):
+                            preview_images = product_group.get("previewImages", [])
+                            if preview_images and isinstance(preview_images, list):
+                                for img in preview_images[:3]:  # 取前3张
+                                    if isinstance(img, dict):
+                                        img_url = img.get("imageUrl", "")
+                                        if img_url:
+                                            # 添加分辨率后缀：在.jpg前添加_200x200_90
+                                            if img_url.endswith('.jpg'):
+                                                img_url = img_url[:-4] + '_200x200_90.jpg'
+                                            image_list.append(img_url)
         if image_list:
             result["商品图片"] = image_list
 
@@ -271,98 +261,98 @@ def analyze_product_info(main_info: Dict[str, Any], more_info: Dict[str, Any]) -
                 result["商品信息"] = product_title
 
         # 3. 价格信息：优先从 sellPriceTags 提取，如果没有则从 salePrice 提取
+        # 注意：products 是以商品ID为key的字典，需要根据product_id获取对应数据
         products = main_info.get("products", {})
         if products and isinstance(products, dict):
-            for pid, product_data in products.items():
-                if isinstance(product_data, dict):
-                    price_view = product_data.get("priceView", {})
-                    if price_view and isinstance(price_view, dict):
-                        price_info = {}
-                        
-                        # 优先从 sellPriceTags 提取价格信息（注意：这是数组）
-                        sell_price_tags = price_view.get("sellPriceTags", [])
-                        if sell_price_tags and isinstance(sell_price_tags, list):
-                            # sellPriceTags 结构：[{"price": "xxx", "priceTips": "超V特卖价"}, ...]
-                            for tag_data in sell_price_tags:
-                                if isinstance(tag_data, dict):
-                                    price_value = tag_data.get("price", "")
-                                    price_text = tag_data.get("priceTips", "")
-                                    if price_value and price_text:
-                                        price_info[price_text] = price_value
-                        
-                        # 从 salePrice 补充折扣信息（sellPriceTags 不包含折扣）
-                        sale_price = price_view.get("salePrice", {})
+            # 根据商品ID获取对应的价格信息
+            product_data = products.get(product_id, {})
+            if product_data and isinstance(product_data, dict):
+                price_view = product_data.get("priceView", {})
+                if price_view and isinstance(price_view, dict):
+                    price_info = {}
+                    
+                    # 优先从 sellPriceTags 提取价格信息（注意：这是数组）
+                    sell_price_tags = price_view.get("sellPriceTags", [])
+                    if sell_price_tags and isinstance(sell_price_tags, list):
+                        # sellPriceTags 结构：[{"price": "xxx", "priceTips": "超V特卖价"}, ...]
+                        for tag_data in sell_price_tags:
+                            if isinstance(tag_data, dict):
+                                price_value = tag_data.get("price", "")
+                                price_text = tag_data.get("priceTips", "")
+                                if price_value and price_text:
+                                    price_info[price_text] = price_value
+                    
+                    # 从 salePrice 补充折扣信息（sellPriceTags 不包含折扣）
+                    sale_price = price_view.get("salePrice", {})
+                    if sale_price and isinstance(sale_price, dict):
+                        if sale_price.get("saleDiscount"):
+                            price_info["折扣"] = sale_price.get("saleDiscount", "")
+                    
+                    # 如果 sellPriceTags 没有数据，从 salePrice 提取全部价格信息
+                    if len(price_info) <= 1:  # 只有折扣或为空
                         if sale_price and isinstance(sale_price, dict):
-                            if sale_price.get("saleDiscount"):
-                                price_info["折扣"] = sale_price.get("saleDiscount", "")
-                        
-                        # 如果 sellPriceTags 没有数据，从 salePrice 提取全部价格信息
-                        if len(price_info) <= 1:  # 只有折扣或为空
-                            if sale_price and isinstance(sale_price, dict):
-                                if sale_price.get("salePrice"):
-                                    price_info["特卖价"] = sale_price.get("salePrice", "")
-                                if sale_price.get("saleMarketPrice"):
-                                    price_info["市场价"] = sale_price.get("saleMarketPrice", "")
+                            if sale_price.get("salePrice"):
+                                price_info["特卖价"] = sale_price.get("salePrice", "")
+                            if sale_price.get("saleMarketPrice"):
+                                price_info["市场价"] = sale_price.get("saleMarketPrice", "")
 
-                        if price_info:
-                            result["价格信息"] = price_info
-                    break
+                    if price_info:
+                        result["价格信息"] = price_info
 
-        # 4. 价格计算公式：formula.detail 下的 t 字段拼接起来
-        formula = main_info.get("formula", {})
-        if formula and isinstance(formula, dict):
-            detail = formula.get("detail", {})
-            if detail and isinstance(detail, dict):
-                t_values = detail.get("t", [])
-                if t_values and isinstance(t_values, list):
-                    formula_text = "".join([str(t) for t in t_values if t])
-                    if formula_text:
-                        result["价格计算公式"] = formula_text
-
-        # 5. 优惠信息：取 foldTips、svipFoldTips 两个字段信息
+        # 4. 优惠信息：通过 products[product_id].foldTipsKeys 和 svipFoldTipsKeys 获取
+        # 注意：需要先获取 product_data，前面价格信息已经获取，这里复用
         discount_info = []
+        products = main_info.get("products", {})
+        product_data = products.get(product_id, {}) if products and isinstance(products, dict) else {}
 
-        # foldTips
-        fold_tips = main_info.get("foldTips", {})
-        if fold_tips and isinstance(fold_tips, dict):
-            for key, tip_data in fold_tips.items():
-                if isinstance(tip_data, dict):
-                    discount_info.append({
-                        "类型": tip_data.get("type", ""),
-                        "提示语": tip_data.get("tips", "")
-                    })
+        if product_data and isinstance(product_data, dict):
+            # foldTips：根据 foldTipsKeys 获取对应数据
+            fold_tips_keys = product_data.get("foldTipsKeys", [])
+            fold_tips = main_info.get("foldTips", {})
+            if fold_tips_keys and isinstance(fold_tips_keys, list) and fold_tips and isinstance(fold_tips, dict):
+                for key in fold_tips_keys:
+                    tip_data = fold_tips.get(key, {})
+                    if tip_data and isinstance(tip_data, dict):
+                        discount_info.append({
+                            "类型": tip_data.get("type", ""),
+                            "提示语": tip_data.get("tips", "")
+                        })
 
-        # svipFoldTips
-        svip_fold_tips = main_info.get("svipFoldTips", {})
-        if svip_fold_tips and isinstance(svip_fold_tips, dict):
-            for key, tip_data in svip_fold_tips.items():
-                if isinstance(tip_data, dict):
-                    discount_info.append({
-                        "类型": tip_data.get("type", ""),
-                        "提示语": tip_data.get("tips", "")
-                    })
+            # svipFoldTips：根据 svipFoldTipsKeys 获取对应数据
+            svip_fold_tips_keys = product_data.get("svipFoldTipsKeys", [])
+            svip_fold_tips = main_info.get("svipFoldTips", {})
+            if svip_fold_tips_keys and isinstance(svip_fold_tips_keys, list) and svip_fold_tips and isinstance(svip_fold_tips, dict):
+                for key in svip_fold_tips_keys:
+                    tip_data = svip_fold_tips.get(key, {})
+                    if tip_data and isinstance(tip_data, dict):
+                        discount_info.append({
+                            "类型": tip_data.get("type", ""),
+                            "提示语": tip_data.get("tips", "")
+                        })
 
         if discount_info:
             result["优惠信息"] = discount_info
 
-        # 6. 优惠券信息：取 foldCoupons 字段
-        fold_coupons = main_info.get("foldCoupons", {})
-        if fold_coupons and isinstance(fold_coupons, dict):
-            coupons_list = []
-            for coupon_key, coupon_data in fold_coupons.items():
-                if isinstance(coupon_data, dict):
-                    coupon_info = {
-                        "优惠券描述": coupon_data.get("text", ""),
-                        "使用门槛": coupon_data.get("subTips", ""),
-                        "购买价": coupon_data.get("buy", ""),
-                        "优惠金额": coupon_data.get("fav", ""),
-                        "使用时间": coupon_data.get("couponTips", "")
-                    }
-                    coupons_list.append(coupon_info)
-            if coupons_list:
-                result["优惠券信息"] = coupons_list
+        # 5. 优惠券信息：通过 products[product_id].foldCouponKeys 获取
+        coupons_list = []
+        if product_data and isinstance(product_data, dict):
+            fold_coupon_keys = product_data.get("foldCouponKeys", [])
+            fold_coupons = main_info.get("foldCoupons", {})
+            if fold_coupon_keys and isinstance(fold_coupon_keys, list) and fold_coupons and isinstance(fold_coupons, dict):
+                for key in fold_coupon_keys:
+                    coupon_data = fold_coupons.get(key, {})
+                    if coupon_data and isinstance(coupon_data, dict):
+                        coupon_info = {
+                            "优惠券描述": coupon_data.get("text", ""),
+                            "使用门槛": coupon_data.get("subTips", ""),
+                            "使用时间": coupon_data.get("couponTips", "")
+                        }
+                        coupons_list.append(coupon_info)
 
-        # 7. 服务标签：取 afterSaleServices.title 字段
+        if coupons_list:
+            result["优惠券信息"] = coupons_list
+
+        # 6. 服务标签：取 afterSaleServices.title 字段
         after_sale_services = main_info.get("afterSaleServices", [])
         if after_sale_services and isinstance(after_sale_services, list):
             tags_list = []
@@ -372,7 +362,7 @@ def analyze_product_info(main_info: Dict[str, Any], more_info: Dict[str, Any]) -
             if tags_list:
                 result["服务标签"] = tags_list
 
-        # 8. 正品信息：取 commitment4 字段
+        # 7. 正品信息：取 commitment4 字段
         commitment4 = main_info.get("commitment4", {})
         if commitment4 and isinstance(commitment4, dict):
             # 提取正品保障相关信息
@@ -392,36 +382,36 @@ def analyze_product_info(main_info: Dict[str, Any], more_info: Dict[str, Any]) -
             # 例如：products中的commitment相关字段
             products = main_info.get("products", {})
             if products and isinstance(products, dict):
-                for pid, product_data in products.items():
-                    if isinstance(product_data, dict):
-                        # 查找各种承诺字段
-                        for field_name in ["commitment", "commitment1", "commitment2", "commitment3", "commitment4", "commitments"]:
-                            commitment_data = product_data.get(field_name)
-                            if commitment_data:
-                                authenticity_info = []
-                                if isinstance(commitment_data, dict):
-                                    for key, value in commitment_data.items():
-                                        if isinstance(value, dict):
-                                            info_text = value.get("text", "")
-                                            if info_text:
-                                                authenticity_info.append(info_text)
-                                        elif isinstance(value, str):
-                                            if value and not value.startswith("http") and value != "defaultItem":
-                                                authenticity_info.append(value)
-                                elif isinstance(commitment_data, str):
-                                    if commitment_data and not commitment_data.startswith("http") and commitment_data != "defaultItem":
-                                        authenticity_info.append(commitment_data)
-                                if authenticity_info:
-                                    result["正品信息"] = authenticity_info
-                                    break
-                        break
+                # 根据商品ID获取对应的正品信息
+                product_data = products.get(product_id, {})
+                if product_data and isinstance(product_data, dict):
+                    # 查找各种承诺字段
+                    for field_name in ["commitment", "commitment1", "commitment2", "commitment3", "commitment4", "commitments"]:
+                        commitment_data = product_data.get(field_name)
+                        if commitment_data:
+                            authenticity_info = []
+                            if isinstance(commitment_data, dict):
+                                for key, value in commitment_data.items():
+                                    if isinstance(value, dict):
+                                        info_text = value.get("text", "")
+                                        if info_text:
+                                            authenticity_info.append(info_text)
+                                    elif isinstance(value, str):
+                                        if value and not value.startswith("http") and value != "defaultItem":
+                                            authenticity_info.append(value)
+                            elif isinstance(commitment_data, str):
+                                if commitment_data and not commitment_data.startswith("http") and commitment_data != "defaultItem":
+                                    authenticity_info.append(commitment_data)
+                            if authenticity_info:
+                                result["正品信息"] = authenticity_info
+                                break
 
-        # 9. 链接：拼接PC链接 https://detail.vip.com/detail-${base.brandId}-${productId}.html
+        # 8. 链接：拼接PC链接 https://detail.vip.com/detail-${base.brandId}-${productId}.html
         brand_id = base.get("brandId", "")
         if brand_id and product_id:
             result["链接"] = f"https://detail.vip.com/detail-{brand_id}-{product_id}.html?f=AIClaw"
 
-    # 10. 精华评论：取前两条（从辅助信息中提取）
+    # 9. 精华评论：取前两条（从辅助信息中提取）
     if more_info and isinstance(more_info, dict) and not more_info.get("error"):
         reputation = more_info.get("reputation", {})
         if reputation and isinstance(reputation, dict):
@@ -494,7 +484,7 @@ def get_product_detail(product_id: str) -> Dict[str, Any]:
         more_result = {}
 
     # 步骤3: 分析总结商品信息
-    analysis_result = analyze_product_info(main_result, more_result)
+    analysis_result = analyze_product_info(product_id, main_result, more_result)
 
     # 步骤4: 组装完整结果（不包含原始数据）
     result = {
