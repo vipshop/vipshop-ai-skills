@@ -9,6 +9,8 @@ description: >
 
 # 唯品会扫码登录 Skill
 
+> ⚠️ **重要规范**：AI 必须先加载本 skill 规范（use_skill），再执行任何脚本或返回结果，不得绕过 skill 规范自行处理数据。
+
 此Skill提供唯品会扫码登录的完整解决方案，用于AI助手自动化完成唯品会账号登录流程。
 
 ## 使用场景
@@ -176,6 +178,7 @@ result = manager.login(
 if result.success and result.qr_token:
     if result.message == "二维码已发送，请扫码确认后使用 --poll 参数继续":
         print(f"二维码已发送，qrToken: {result.qr_token}")
+        print(f"如果二维码展示失败，请点击 {result.qr_url} 查看二维码")
         print("用户扫码确认后，调用 manager.login(qr_token_to_poll=qr_token) 继续")
     else:
         print("登录成功!")

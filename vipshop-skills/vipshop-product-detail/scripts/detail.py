@@ -250,6 +250,9 @@ def analyze_product_info(main_info: Dict[str, Any], more_info: Dict[str, Any]) -
                             if isinstance(img, dict):
                                 img_url = img.get("imageUrl", "")
                                 if img_url:
+                                    # 添加分辨率后缀：在.jpg前添加_300x300_90
+                                    if img_url.endswith('.jpg'):
+                                        img_url = img_url[:-4] + '_200x200_90.jpg'
                                     image_list.append(img_url)
                                 if len(image_list) >= 3:
                                     break

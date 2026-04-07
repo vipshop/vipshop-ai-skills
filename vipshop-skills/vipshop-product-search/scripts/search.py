@@ -225,13 +225,18 @@ def format_product_detail(product: Dict[str, Any], index: int) -> Dict[str, Any]
     small_image = product.get("smallImage", "")
     square_image = product.get("squareImage", "")
 
+    # 处理图片分辨率：将 _420_531.jpg 替换为 _300x300_100.jpg
+    image_url = small_image or square_image
+    if image_url and "_420_531.jpg" in image_url:
+        image_url = image_url.replace("_420_531.jpg", "_200x200_90.jpg")
+
     # 返回结构化数据
     return {
         "序号": index,
         "商品ID": product_id,
         "商品链接": product_link,
         "商品名": title,
-        "商品图片": small_image or square_image,
+        "商品图片": image_url,
         "价格": sale_price,
         "原价": market_price,
         "折扣": sale_discount,
