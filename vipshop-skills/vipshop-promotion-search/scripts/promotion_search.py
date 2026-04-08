@@ -7,6 +7,7 @@
 
 import sys
 import json
+import time
 import urllib.request
 from pathlib import Path
 from typing import Dict, List, Any, Optional
@@ -111,7 +112,7 @@ def load_login_tokens() -> Optional[Dict[str, Any]]:
     加载登录态
     
     Returns:
-        登录态字典，包含cookies等信息；如果未登录返回None
+        登录态字典，包含cookies等信息；如果未登录或已过期返回None
     """
     token_file = Path.home() / ".vipshop-user-login" / "tokens.json"
     
@@ -124,6 +125,10 @@ def load_login_tokens() -> Optional[Dict[str, Any]]:
         
         # 检查是否是新格式（包含cookies字段）
         if data and isinstance(data, dict) and 'cookies' in data:
+            # 检查token是否过期
+            expires_at = data.get('expires_at')
+            if expires_at and time.time() > expires_at:
+                return None
             return data
         return None
     except Exception as e:

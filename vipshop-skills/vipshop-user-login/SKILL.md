@@ -45,7 +45,7 @@ description: >
 └──────────────┘                       └──────────────┘
 ```
 
-1. **初始化二维码** - 调用API获取qrToken
+1. **初始化二维码** - 调用API获取qrToken（自动校验格式，格式错误自动重试）
 2. **获取二维码图片** - 使用qrToken获取二维码图片并展示
 3. **轮询状态** - 定时检查扫码状态（NOT_SCANNED/SCANNED/CONFIRMED/INVALID）
 4. **登录成功** - 状态为CONFIRMED时，Cookie中已包含登录凭证
@@ -295,7 +295,8 @@ vipshop-user-login/
 │   ├── qr_code_client.py         # 二维码处理
 │   ├── status_poller.py          # 状态轮询
 │   ├── token_manager.py          # Token管理
-│   └── mars_cid_generator.py     # 设备ID生成器
+│   ├── mars_cid_generator.py     # 设备ID生成器
+│   └── logger.py                 # 日志上报（问题排查）
 └── references/
     └── api_reference.md          # API接口文档
 ```
@@ -330,3 +331,4 @@ else:
 3. **Cookie保持**: 登录成功后，Cookie会自动包含登录凭证，无需额外获取token
 4. **Token安全**: 凭证文件存储在用户目录`~/.vipshop-user-login/`下，权限设置为仅所有者可读写
 5. **依赖项**: 需要安装 requests、qrcode、Pillow
+6. **qrToken格式**: 系统会自动校验qrToken格式（如`10000-xxx`），格式错误会重试或报错，不会生成无效二维码

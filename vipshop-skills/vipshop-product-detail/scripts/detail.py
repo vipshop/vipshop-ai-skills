@@ -7,10 +7,100 @@
 
 import sys
 import json
+import re
+import time
 import urllib.request
 import urllib.parse
 from pathlib import Path
 from typing import Dict, List, Any, Optional
+
+
+def process_image_url(image_url: str) -> str:
+    """
+    处理图片URL，添加裁剪参数和webp格式
+    
+    Args:
+        image_url: 原始图片URL
+        
+    Returns:
+        处理后的图片URL
+    """
+    if not image_url:
+        return image_url
+    
+    # 支持的域名列表
+    supported_domains = [
+        "a.appsimg.com", "b.appsimg.com", "h2.appsimg.com",
+        "a.vpimg1.com", "c.vpimg1.com", "d.vpimg1.com",
+        "a.vpimg2.com", "a.vpimg3.com", "a.vpimg4.com",
+        "img1.vipshop.com"
+    ]
+    
+    # 需要替换为 a.appsimg.com 的域名
+    domains_to_replace = [
+        "a.vpimg1.com", "c.vpimg1.com", "d.vpimg1.com",
+        "a.vpimg2.com", "a.vpimg3.com", "a.vpimg4.com",
+        "img1.vipshop.com"
+    ]
+    
+    # 第一步：判断图片是否支持增加webp后缀
+    url_lower = image_url.lower()
+    support_webp = True
+    
+    # (1) 如果后缀是webp结尾；不支持
+    if url_lower.endswith(".webp"):
+        support_webp = False
+    
+    # (2) 是否是PNG结尾，不支持
+    if url_lower.endswith(".png"):
+        support_webp = False
+    
+    # (3) 是否是APNG，不支持（判断URL参数有ext=apng）
+    if "ext=apng" in url_lower:
+        support_webp = False
+    
+    # (4) 域名必须是指定域名
+    domain_matched = False
+    for domain in supported_domains:
+        if domain in image_url:
+            domain_matched = True
+            break
+    
+    if not domain_matched:
+        support_webp = False
+    
+    # 第二步：判断是否支持裁剪参数拼接
+    support_crop = True
+    
+    # (1) 不是gif、不是apng
+    if url_lower.endswith(".gif") or "ext=apng" in url_lower:
+        support_crop = False
+    
+    # (2) 没有匹配到格式：(_\d+x\d+)_(\d+)\.{1}  例如：_1920x1080_30.
+    pattern = r'_\d+x\d+_\d+\.'
+    if re.search(pattern, image_url):
+        support_crop = False
+    
+    # 第三步：处理裁剪参数拼接
+    if support_crop:
+        # (1) 替换域名
+        for old_domain in domains_to_replace:
+            if old_domain in image_url:
+                image_url = image_url.replace(old_domain, "a.appsimg.com")
+                break
+        
+        # (2) 添加裁剪参数：把.jpg 替换成 _200x200.jpg
+        if image_url.lower().endswith(".jpg"):
+            image_url = image_url[:-4] + "_200x200_90.jpg"
+        elif image_url.lower().endswith(".jpeg"):
+            image_url = image_url[:-5] + "_200x200_90.jpeg"
+    
+    # 第四步：处理webp参数
+    if support_webp:
+        # 添加 !85.webp 后缀
+        image_url = image_url + "!85.webp"
+    
+    return image_url
 
 
 def load_login_tokens() -> Optional[Dict[str, Any]]:
@@ -18,7 +108,7 @@ def load_login_tokens() -> Optional[Dict[str, Any]]:
     加载登录态
     
     Returns:
-        登录态字典，包含cookies等信息；如果未登录返回None
+        登录态字典，包含cookies等信息；如果未登录或已过期返回None
     """
     token_file = Path.home() / ".vipshop-user-login" / "tokens.json"
     
@@ -31,6 +121,10 @@ def load_login_tokens() -> Optional[Dict[str, Any]]:
         
         # 检查是否是新格式（包含cookies字段）
         if data and isinstance(data, dict) and 'cookies' in data:
+            # 检查token是否过期
+            expires_at = data.get('expires_at')
+            if expires_at and time.time() > expires_at:
+                return None
             return data
         return None
     except Exception as e:
@@ -244,9 +338,8 @@ def analyze_product_info(product_id: str, main_info: Dict[str, Any], more_info: 
                                     if isinstance(img, dict):
                                         img_url = img.get("imageUrl", "")
                                         if img_url:
-                                            # 添加分辨率后缀：在.jpg前添加_200x200_90
-                                            if img_url.endswith('.jpg'):
-                                                img_url = img_url[:-4] + '_200x200_90.jpg'
+                                            # 处理图片URL：添加裁剪参数和webp格式
+                                            img_url = process_image_url(img_url)
                                             image_list.append(img_url)
         if image_list:
             result["商品图片"] = image_list
