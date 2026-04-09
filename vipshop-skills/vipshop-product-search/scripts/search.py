@@ -22,6 +22,8 @@ if sys.platform == 'win32':
 # 导入 exchange_link_builder 中的函数
 from exchange_link_builder import build_product_link
 
+import logger
+
 
 def load_login_tokens() -> Optional[Dict[str, Any]]:
     """
@@ -49,6 +51,7 @@ def load_login_tokens() -> Optional[Dict[str, Any]]:
         return None
     except Exception as e:
         sys.stderr.write(f"加载登录态失败: {e}\n")
+        logger.error("load_login_tokens_failed", error_msg=str(e))
         return None
 
 
@@ -365,11 +368,13 @@ def search_vipshop(keyword: str, page_offset: int = 0, price_min: Optional[int] 
         JSON格式的搜索结果
     """
     if not keyword:
+        logger.warning("search_empty_keyword")
         return {"error": "请提供搜索关键词"}
 
     # 检查登录态
     login_data = load_login_tokens()
     if login_data is None:
+        logger.warning("search_no_login")
         return {
             "error": "login_required",
             "message": "需要登录唯品会账户",
@@ -386,28 +391,37 @@ def search_vipshop(keyword: str, page_offset: int = 0, price_min: Optional[int] 
         mars_cid = login_cookies['mars_cid']
 
     # 步骤1: 搜索商品
+    logger.info("search_start", keyword=keyword, page_offset=str(page_offset))
     search_result = search_products(keyword, cookies, mars_cid, page_offset, price_min, price_max)
 
     if "error" in search_result:
         # 检查是否是token过期
         if search_result.get("error") == "token_expired":
+            logger.error("search_token_expired", keyword=keyword)
             return {"error": "token_expired", "message": "登录已过期，请重新登录"}
+        logger.error("search_api_failed", keyword=keyword, error_msg=search_result['error'])
         return {"error": f"接口调用失败：{search_result['error']}"}
 
     total = search_result.get("total", 0)
     product_ids = search_result.get("product_ids", [])
 
     if total == 0:
+        logger.info("search_no_result", keyword=keyword)
         return {"error": "未找到相关商品"}
 
+    logger.info("search_success", keyword=keyword, total=str(total), product_ids=product_ids)
+
     # 步骤2: 获取商品详情
+    logger.info("search_detail_start", keyword=keyword, product_ids=product_ids)
     detail_result = get_product_details(product_ids, cookies, mars_cid)
 
     if "error" in detail_result:
         # 检查是否是token过期
         if detail_result.get("error") == "token_expired":
+            logger.error("search_detail_token_expired", keyword=keyword)
             return {"error": "token_expired", "message": "登录已过期，请重新登录"}
         # 详情接口失败，降级为返回商品ID
+        logger.error("search_detail_failed", keyword=keyword, error_msg=detail_result['error'])
         return {
             "error": f"商品详情接口失败：{detail_result['error']}",
             "总数": total,
@@ -417,6 +431,7 @@ def search_vipshop(keyword: str, page_offset: int = 0, price_min: Optional[int] 
     products = detail_result.get("products", [])
 
     if not products:
+        logger.warning("search_detail_empty", keyword=keyword)
         return {
             "error": "未获取到商品详情",
             "总数": total,
@@ -437,6 +452,8 @@ def search_vipshop(keyword: str, page_offset: int = 0, price_min: Optional[int] 
     formatted_products = []
     for i, product in enumerate(products, page_offset + 1):
         formatted_products.append(format_product_detail(product, i))
+
+    logger.info("search_complete", keyword=keyword, total=str(display_total), current_page=str(current_page), result_count=str(len(products)))
 
     result = {
         "搜索关键词": keyword,
@@ -518,6 +535,9 @@ def main():
 
     # 输出JSON格式数据，确保中文正常显示
     print(json.dumps(result, ensure_ascii=False, indent=2))
+
+    # 等待所有日志上报完成
+    logger.flush()
 
 
 if __name__ == "__main__":

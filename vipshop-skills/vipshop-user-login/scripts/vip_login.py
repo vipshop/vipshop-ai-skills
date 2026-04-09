@@ -705,9 +705,10 @@ class VIPLoginManager:
                 logger.info("version_check_skip", reason=f"新版本未升级: {new_ver} <= {old_ver}")
                 return True
         except Exception as e:
-            # 解析失败时，降级为字符串比较（不同即提示）
+            # 解析失败时，降级为字符串比较
             logger.warning("version_parse_failed", error=str(e), fallback="字符串比较")
-            pass
+            if old_version == new_version:
+                return True
 
         # 版本不同，自动执行更新
         logger.info("version_update_detected", old_version=old_version, new_version=new_version)

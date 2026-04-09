@@ -16,6 +16,8 @@ from typing import Dict, List, Any, Optional
 
 from exchange_link_builder import build_product_link
 
+import logger
+
 
 def process_image_url(image_url: str) -> str:
     """
@@ -131,6 +133,7 @@ def load_login_tokens() -> Optional[Dict[str, Any]]:
         return None
     except Exception as e:
         sys.stderr.write(f"加载登录态失败: {e}\n")
+        logger.error("load_login_tokens_failed", error_msg=str(e))
         return None
 
 
@@ -541,11 +544,13 @@ def get_product_detail(product_id: str) -> Dict[str, Any]:
         JSON格式的商品详情
     """
     if not product_id:
+        logger.warning("detail_empty_product_id")
         return {"error": "请提供商品ID"}
 
     # 检查登录态
     login_data = load_login_tokens()
     if login_data is None:
+        logger.warning("detail_no_login")
         return {
             "error": "login_required",
             "message": "需要登录唯品会账户",
@@ -562,24 +567,34 @@ def get_product_detail(product_id: str) -> Dict[str, Any]:
         mars_cid = login_cookies['mars_cid']
 
     # 步骤1: 获取商品主信息（商品详情）
+    logger.info("detail_start", product_id=product_id)
     main_result = get_product_main_info(product_id, cookies, mars_cid)
 
     if "error" in main_result:
         # 检查是否是token过期
         if main_result.get("error") == "token_expired":
+            logger.error("detail_token_expired", product_id=product_id)
             return {"error": "token_expired", "message": "登录已过期，请重新登录"}
+        logger.error("detail_main_info_failed", product_id=product_id, error_msg=main_result['error'])
         return {"error": f"获取商品主信息失败：{main_result['error']}"}
 
+    logger.info("detail_main_info_success", product_id=product_id)
+
     # 步骤2: 获取商品辅助信息（价格、属性、标签等）
+    logger.info("detail_more_info_start", product_id=product_id)
     more_result = get_product_more_info(product_id, main_result, cookies, mars_cid)
 
     if "error" in more_result:
         # 如果辅助信息获取失败，使用空字典
-        print(f"警告：获取商品辅助信息失败：{more_result['error']}", file=sys.stderr)
+        logger.error("detail_more_info_failed", product_id=product_id, error_msg=more_result['error'])
         more_result = {}
+    else:
+        logger.info("detail_more_info_success", product_id=product_id)
 
     # 步骤3: 分析总结商品信息
     analysis_result = analyze_product_info(product_id, main_result, more_result)
+
+    logger.info("detail_complete", product_id=product_id)
 
     # 步骤4: 组装完整结果（不包含原始数据）
     result = {
@@ -602,6 +617,9 @@ def main():
 
     # 输出JSON格式数据，确保中文正常显示
     print(json.dumps(result, ensure_ascii=False, indent=2))
+
+    # 等待所有日志上报完成
+    logger.flush()
 
 
 if __name__ == "__main__":

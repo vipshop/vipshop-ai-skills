@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-日志上报模块
+商品搜索日志上报模块
 
-用于上报登录流程中的关键事件，便于排查问题。
+用于上报商品搜索流程中的关键事件，便于排查问题。
 """
 
 import json
@@ -51,16 +51,27 @@ class LoggerReporter:
                 self._mars_cid = "unknown"
         return self._mars_cid
 
-    def _mask_qr_token(self, qr_token: Optional[str]) -> str:
-        """脱敏 qrToken
+    def _mask_keyword(self, keyword: Optional[str]) -> str:
+        """脱敏搜索关键词
 
-        例如: 10000-098f1e2676a54ef0bbdb43e18c6ef84a -> 10000-098f1***
+        保留前2个字符，其余用***替代
         """
-        if not qr_token:
+        if not keyword:
             return ""
-        if len(qr_token) <= 10:
-            return qr_token[:5] + "***"
-        return qr_token[:10] + "***"
+        if len(keyword) <= 2:
+            return keyword[:1] + "***"
+        return keyword[:2] + "***"
+
+    def _mask_product_id(self, product_id: Optional[str]) -> str:
+        """脱敏商品ID
+
+        保留前4位和后4位，中间用***替代
+        """
+        if not product_id:
+            return ""
+        if len(product_id) <= 8:
+            return product_id[:4] + "***"
+        return product_id[:4] + "***" + product_id[-4:]
 
     def _build_params(self, event: str, level: str, **kwargs) -> dict:
         """构建上报参数"""
@@ -68,7 +79,7 @@ class LoggerReporter:
         if self.EVENT_PREFIX and not event.startswith(self.EVENT_PREFIX):
             event = f"{self.EVENT_PREFIX}{event}"
         params = {
-            "report_type": "aiclaw_login",
+            "report_type": "aiclaw_search",
             "mars_cid": self._get_mars_cid(),
             "log_level": level,
             "event": event,
@@ -79,9 +90,21 @@ class LoggerReporter:
             "session_id": self._session_id,
         }
 
-        # 脱敏处理 qr_token
-        if "qr_token" in kwargs:
-            params["qr_token_mask"] = self._mask_qr_token(kwargs.pop("qr_token"))
+        # 脱敏处理搜索关键词
+        if "keyword" in kwargs:
+            params["keyword_mask"] = self._mask_keyword(kwargs.pop("keyword"))
+
+        # 脱敏处理商品ID
+        if "product_id" in kwargs:
+            params["product_id_mask"] = self._mask_product_id(kwargs.pop("product_id"))
+
+        # 脱敏处理商品ID列表
+        if "product_ids" in kwargs:
+            product_ids = kwargs.pop("product_ids")
+            if isinstance(product_ids, list):
+                params["product_ids_count"] = str(len(product_ids))
+            else:
+                params["product_ids_count"] = "0"
 
         # 添加其他字段
         params.update(kwargs)
@@ -191,13 +214,13 @@ def flush(timeout: float = 3.0):
 
 if __name__ == "__main__":
     # 测试代码
-    print("日志上报模块测试")
+    print("商品搜索日志上报模块测试")
     print("-" * 50)
 
     # 测试不同级别的日志
-    info("test_info", message="这是一条测试信息")
-    warning("test_warning", qr_token="10000-098f1e2676a54ef0bbdb43e18c6ef84a")
-    error("test_error", error_msg="测试错误", retry_count=1)
+    info("search_start", keyword="连衣裙", page_offset=0)
+    warning("search_slow", keyword="连衣裙", elapsed_ms=5000)
+    error("search_failed", keyword="连衣裙", error_msg="接口超时", product_ids=["1234567890", "0987654321"])
 
     print("日志已发送（异步）")
     print("等待 2 秒确保发送完成...")
