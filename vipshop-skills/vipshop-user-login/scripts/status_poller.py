@@ -25,6 +25,8 @@ from dataclasses import dataclass
 
 import requests
 
+import logger  # 日志上报模块
+
 
 class LoginStatus(Enum):
     """登录状态枚举"""
@@ -42,6 +44,7 @@ class StatusResult:
     status_str: str
     message: str
     redirect_url: Optional[str] = None
+    version: Optional[str] = None  # skill 版本号
     raw_response: Optional[Dict] = None
     raw_http_response: Optional[requests.Response] = None  # AI-Generated: 原始HTTP响应对象，用于提取cookies
 
@@ -115,7 +118,7 @@ class StatusPoller:
             response.raise_for_status()
             
             result = response.json()
-            
+
             # 检查响应状态码
             if result.get('code') != 200:
                 message = result.get('msg', '请求失败')
@@ -137,11 +140,21 @@ class StatusPoller:
             # 提取跳转URL
             redirect_url = result.get('redirectUrl')
             
+            # 提取版本号
+            version = result.get('version')
+
+            # 记录 checkStatus 响应（仅在 CONFIRMED 时记录完整信息，避免高频轮询刷屏）
+            if login_status == LoginStatus.CONFIRMED:
+                logger.info("check_status_response", status_str=status_str, version=str(version), raw_keys=str(list(result.keys())))
+            else:
+                logger.debug("check_status_polling", status_str=status_str, version=str(version))
+
             return StatusResult(
                 status=login_status,
                 status_str=status_str,
                 message=message,
                 redirect_url=redirect_url,
+                version=version,
                 raw_response=result,
                 raw_http_response=response  # AI-Generated
             )

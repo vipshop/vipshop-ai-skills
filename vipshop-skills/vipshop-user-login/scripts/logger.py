@@ -30,10 +30,14 @@ class LoggerReporter:
     # 版本号
     VERSION = "1.0.0"
 
+    # 事件名统一前缀
+    EVENT_PREFIX = "vskill_"
+
     def __init__(self):
         self._mars_cid = None
         self._lock = threading.Lock()
         self._session_id = self._generate_session_id()
+        self._threads = []  # 追踪所有发送线程
 
     def _generate_session_id(self) -> str:
         """生成会话ID"""
@@ -61,6 +65,9 @@ class LoggerReporter:
 
     def _build_params(self, event: str, level: str, **kwargs) -> dict:
         """构建上报参数"""
+        # 自动拼接事件前缀（已有前缀则不加）
+        if self.EVENT_PREFIX and not event.startswith(self.EVENT_PREFIX):
+            event = f"{self.EVENT_PREFIX}{event}"
         params = {
             "report_type": "aiclaw_login",
             "mars_cid": self._get_mars_cid(),
@@ -113,6 +120,15 @@ class LoggerReporter:
         # 在新线程中发送
         thread = threading.Thread(target=send, daemon=True)
         thread.start()
+        # 清理已结束的线程，避免长期运行时列表无限增长
+        self._threads = [t for t in self._threads if t.is_alive()]
+        self._threads.append(thread)
+
+    def flush(self, timeout: float = 3.0):
+        """等待所有待发日志完成（退出前调用，确保日志不丢失）"""
+        for thread in self._threads:
+            thread.join(timeout=timeout)
+        self._threads.clear()
 
     def log(self, level: str, event: str, **kwargs):
         """记录日志并上报"""
@@ -167,6 +183,11 @@ def warning(event: str, **kwargs):
 def error(event: str, **kwargs):
     """错误级别日志"""
     get_reporter().error(event, **kwargs)
+
+
+def flush(timeout: float = 3.0):
+    """等待所有待发日志完成（退出前调用，确保日志不丢失）"""
+    get_reporter().flush(timeout=timeout)
 
 
 if __name__ == "__main__":

@@ -46,8 +46,10 @@ description: 唯品会（vip.com）商品详情查询技能。当用户想查看
 > 大小合适，订婚穿质感很不错，特别合身！出片款式时尚！
 
 ---
-🔗 商品链接：https://detail.vip.com/xxx?f=AIClaw
+🔗 商品链接：https://passport.vip.com/exchangeTokenFromApp?dt=xxx&sg=xxx&src=...
 ```
+
+> 💡 商品链接格式说明：已登录时返回带 exchange token 的自动登录链接，未登录时返回普通商品详情链接。AI 展示时直接显示 URL 即可。
 
 ### 字段展示规则（按顺序展示）
 
@@ -60,7 +62,19 @@ description: 唯品会（vip.com）商品详情查询技能。当用户想查看
 | 服务标签 | 使用代码块标签样式，用反引号包裹每个标签 |
 | 正品信息 | 使用 `·` 分隔 |
 | 精华评论 | 使用引用格式 `>`，最多展示2条，每条评论可适当精简 |
-| 商品链接 | 底部固定位置，直接显示URL（带utm参数） |
+| 商品链接 | 底部固定位置，直接显示URL |
+
+### 商品链接说明
+
+脚本返回的商品链接可能有以下两种格式，都是有效的：
+
+1. **带 exchange token 的链接**（用户已登录时）：`https://passport.vip.com/exchangeTokenFromApp?...`
+   - 这是一个自动登录跳转链接，点击后会自动登录并跳转到商品详情页
+
+2. **普通商品链接**（未登录或 token 获取失败时）：`https://detail.vip.com/detail-{brand_id}-{product_id}.html?pcf=AIClaw`
+   - 标准商品详情页链接
+
+AI 展示时无需区分这两种链接，直接显示 URL 即可。
 
 ### 字段缺失处理
 - 如果某字段为空或不存在，**跳过该分区**，不要展示

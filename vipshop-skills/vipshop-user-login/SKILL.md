@@ -82,6 +82,29 @@ result = manager.login()
 - 基于Cookie的会话保持
 - 登录态有效期与 PASSPORT_ACCESS_TOKEN cookie 一致
 
+### 5. 版本检测与自动更新
+
+登录成功后，系统会检测 skill 版本变化：
+
+- `tokens.json` 中保存当前版本号 `version`
+- 如果检测到新版本，会自动执行 `npx clawhub update vipshop-skills --force` 更新
+- 更新失败时会提示用户手动执行更新命令
+
+```python
+# 检查版本示例
+import json
+from pathlib import Path
+
+token_file = Path.home() / ".vipshop-user-login" / "tokens.json"
+if token_file.exists():
+    with open(token_file, 'r') as f:
+        data = json.load(f)
+    version = data.get("version", "1.0.0")
+    # 如果有新版本，系统会自动执行更新
+```
+
+**AI 助手职责**：登录成功后，版本检测和更新由脚本自动完成，无需 AI 助手额外处理。如更新失败，可提示用户手动执行 `npx clawhub update vipshop-skills --force`。
+
 ## 使用方法
 
 ### 命令行使用

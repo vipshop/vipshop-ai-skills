@@ -13,6 +13,15 @@ import urllib.parse
 from pathlib import Path
 from typing import Dict, List, Any, Optional
 
+# 设置 stdout 编码为 utf-8，解决 Windows 上的编码问题
+if sys.platform == 'win32':
+    import io
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+
+# 导入 exchange_link_builder 中的函数
+from exchange_link_builder import build_product_link
+
 
 def load_login_tokens() -> Optional[Dict[str, Any]]:
     """
@@ -97,6 +106,7 @@ def search_products(keyword: str, cookies: Dict[str, str], mars_cid: str, page_o
     Returns:
         搜索结果，包含商品ID列表和总数
     """
+    BATCH_SIZE = 10
     base_url = "https://mapi-pc.vip.com/vips-mobile/rest/shopping/skill/search/product/rank"
 
     params = {
@@ -115,7 +125,7 @@ def search_products(keyword: str, cookies: Dict[str, str], mars_cid: str, page_o
         'standby_id': 'nature',
         'pageOffset': str(page_offset),
         'channelId': '1',
-        'batchSize': '10'
+        'batchSize': str(BATCH_SIZE)
     }
 
     # 添加价格区间参数
@@ -140,8 +150,11 @@ def search_products(keyword: str, cookies: Dict[str, str], mars_cid: str, page_o
     total = data.get("total", 0)
     products = data.get("products", [])
 
-    # 提取所有商品ID
+    # 提取所有商品ID并截断为 batchSize 数量
     product_ids = [p.get("pid") for p in products if p.get("pid")]
+    if len(product_ids) > BATCH_SIZE:
+        product_ids = product_ids[:BATCH_SIZE]
+        products = products[:BATCH_SIZE]
 
     return {
         "total": total,
@@ -305,8 +318,8 @@ def format_product_detail(product: Dict[str, Any], index: int) -> Dict[str, Any]
     title = product.get("title", "")
     price = product.get("price", {})
 
-    # 构建商品链接
-    product_link = f"https://detail.vip.com/detail-{brand_id}-{product_id}.html?f=AIClaw"
+    # 使用 build_product_link 生成带 exchange token 的链接
+    product_link = build_product_link(brand_id, product_id)
 
     # 提取价格信息
     sale_price = price.get("salePrice", "")

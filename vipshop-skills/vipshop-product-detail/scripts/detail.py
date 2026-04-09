@@ -14,6 +14,8 @@ import urllib.parse
 from pathlib import Path
 from typing import Dict, List, Any, Optional
 
+from exchange_link_builder import build_product_link
+
 
 def process_image_url(image_url: str) -> str:
     """
@@ -499,10 +501,10 @@ def analyze_product_info(product_id: str, main_info: Dict[str, Any], more_info: 
                                 result["正品信息"] = authenticity_info
                                 break
 
-        # 8. 链接：拼接PC链接 https://detail.vip.com/detail-${base.brandId}-${productId}.html
+        # 8. 链接：生成联登链接（带 exchange token）
         brand_id = base.get("brandId", "")
         if brand_id and product_id:
-            result["链接"] = f"https://detail.vip.com/detail-{brand_id}-{product_id}.html?f=AIClaw"
+            result["链接"] = build_product_link(brand_id, product_id)
 
     # 9. 精华评论：取前两条（从辅助信息中提取）
     if more_info and isinstance(more_info, dict) and not more_info.get("error"):

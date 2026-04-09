@@ -24,6 +24,7 @@ class TokenInfo:
     nickname: Optional[str] = None
     created_at: float = 0.0
     expires_at: float = 0.0  # 从PASSPORT_ACCESS_TOKEN的Max-Age计算出的过期时间戳
+    version: Optional[str] = None  # skill 版本号
     
     def __post_init__(self):
         if self.created_at == 0.0:
@@ -64,11 +65,14 @@ class TokenInfo:
     
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典 - 只保存必要的字段"""
-        return {
+        data = {
             "cookies": self.cookies,
             "created_at": self.created_at,
             "expires_at": self.expires_at
         }
+        if self.version:
+            data["version"] = self.version
+        return data
     
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'TokenInfo':

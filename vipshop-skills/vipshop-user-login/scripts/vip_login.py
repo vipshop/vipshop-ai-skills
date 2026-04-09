@@ -15,6 +15,7 @@ import sys
 import time
 import os
 import argparse
+import subprocess
 from typing import Optional, Callable, Dict, Any
 from dataclasses import dataclass
 
@@ -36,6 +37,8 @@ import logger  # AI-Generated: 导入日志上报模块
 
 import re  # AI-Generated: 导入正则表达式模块
 
+from packaging.version import parse as parse_version  # 版本号比较
+
 
 # =============================================================================
 # 配置参数
@@ -44,6 +47,9 @@ import re  # AI-Generated: 导入正则表达式模块
 
 class Config:
     """配置类"""
+
+    # Skill 版本号（兜底值，当接口未返回 version 时使用）
+    DEFAULT_VERSION = "1.0.0"
 
     # API 基础配置
     BASE_URL = "https://passport.vip.com"
@@ -420,12 +426,28 @@ class VIPLoginManager:
             if "mars_cid" in session_cookies:
                 cookies["mars_cid"] = session_cookies["mars_cid"]
 
+        # 获取旧版本（用于版本检测提示）
+        old_version = None
+        old_token = self.token_manager.get_token()
+        if old_token and hasattr(old_token, 'version'):
+            old_version = old_token.version
+        logger.info("version_check_prepare", source="complete_login", old_version=str(old_version), poll_result_version=str(poll_result.version), default_version=str(self.config.DEFAULT_VERSION))
+
+        # 从响应中获取新版本（接口未返回时使用兜底值）
+        new_version = poll_result.version or self.config.DEFAULT_VERSION
+
+        # 先检查版本更新，确定最终写入的版本号
+        update_ok = self._check_version_update(old_version, new_version)
+        # 更新失败时保留旧版本号，确保下次登录能再次触发更新提示
+        final_version = new_version if update_ok else (old_version or new_version)
+
         # 保存登录态（只包含必要的cookie）
         token_info = TokenInfo(
             cookies=cookies,
             user_id="",  # 不再保存用户ID
             nickname="",  # 不再保存昵称
             expires_at=expires_at,
+            version=final_version,
         )
 
         # 保存到本地（单用户模式）
@@ -608,12 +630,28 @@ class VIPLoginManager:
             if "mars_cid" in session_cookies:
                 cookies["mars_cid"] = session_cookies["mars_cid"]
 
+        # 获取旧版本（用于版本检测提示）
+        old_version = None
+        old_token = self.token_manager.get_token()
+        if old_token and hasattr(old_token, 'version'):
+            old_version = old_token.version
+        logger.info("version_check_prepare", source="poll_login", old_version=str(old_version), poll_result_version=str(poll_result.version), default_version=str(self.config.DEFAULT_VERSION))
+
+        # 从响应中获取新版本（接口未返回时使用兜底值）
+        new_version = poll_result.version or self.config.DEFAULT_VERSION
+
+        # 先检查版本更新，确定最终写入的版本号
+        update_ok = self._check_version_update(old_version, new_version)
+        # 更新失败时保留旧版本号，确保下次登录能再次触发更新提示
+        final_version = new_version if update_ok else (old_version or new_version)
+
         # 保存登录态（只包含必要的cookie）
         token_info = TokenInfo(
             cookies=cookies,
             user_id="",  # 不再保存用户ID
             nickname="",  # 不再保存昵称
             expires_at=expires_at,
+            version=final_version,
         )
 
         self.token_manager.save_token("current_user", token_info)
@@ -630,6 +668,60 @@ class VIPLoginManager:
             qr_token=qr_token,
             redirect_url=poll_result.redirect_url,
         )
+    
+    def _check_version_update(self, old_version: Optional[str], new_version: Optional[str]) -> bool:
+        """
+        检测版本变化并自动更新
+
+        Args:
+            old_version: 旧版本号
+            new_version: 新版本号
+
+        Returns:
+            True 表示更新成功或无需更新，False 表示更新失败
+        """
+        logger.info("version_check_start", old_version=str(old_version), new_version=str(new_version))
+
+        if not new_version:
+            logger.warning("version_check_skip", reason="new_version为空")
+            return True
+
+        # 如果是新登录（没有旧版本），不提示
+        if not old_version:
+            logger.info("version_check_skip", reason="old_version为空(新登录)")
+            return True
+
+        # 版本相同，不提示
+        if old_version == new_version:
+            logger.info("version_check_skip", reason=f"版本相同: {old_version}")
+            return True
+
+        # 使用语义化版本比较，只有新版本 > 旧版本时才提示更新
+        try:
+            old_ver = parse_version(old_version)
+            new_ver = parse_version(new_version)
+            logger.info("version_compare", old_parsed=str(old_ver), new_parsed=str(new_ver))
+            if new_ver <= old_ver:
+                logger.info("version_check_skip", reason=f"新版本未升级: {new_ver} <= {old_ver}")
+                return True
+        except Exception as e:
+            # 解析失败时，降级为字符串比较（不同即提示）
+            logger.warning("version_parse_failed", error=str(e), fallback="字符串比较")
+            pass
+
+        # 版本不同，自动执行更新
+        logger.info("version_update_detected", old_version=old_version, new_version=new_version)
+        print(f"\n📢 检测到新版本: {old_version} -> {new_version}")
+        print(f"   正在自动更新...")
+        try:
+            subprocess.run(["npx", "clawhub", "update", "vipshop-skills", "--force"], check=True)
+            logger.info("version_update_success", old_version=old_version, new_version=new_version)
+            return True
+        except Exception as e:
+            logger.error("version_update_failed", error=str(e))
+            print(f"   自动更新失败: {e}")
+            print(f"   请手动执行: npx clawhub update vipshop-skills --force")
+            return False
 
     def quick_login(self, where_from: str = "") -> LoginResult:
         """
@@ -762,6 +854,7 @@ def main():
         else:
             print("没有待处理的登录请求")
             logger.warning("cli_continue_login_no_pending")
+            logger.flush()
             sys.exit(1)
     elif args.poll:
         # 使用指定的qrToken继续轮询
@@ -787,6 +880,9 @@ def main():
     else:
         print(f"✗ 登录失败: {result.message}")
     print("=" * 60)
+
+    # 等待所有日志上报完成，防止 daemon 线程被 sys.exit 杀死导致日志丢失
+    logger.flush()
 
     sys.exit(0 if result.success else 1)
 
