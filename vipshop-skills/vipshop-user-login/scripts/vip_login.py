@@ -280,7 +280,8 @@ class VIPLoginManager:
         if os.environ.get("OPENCLAW_SESSION") == "1" and qr_file_path:
             print(f"\n[OPENCLAW_SEND_FILE]{qr_file_path}[/OPENCLAW_SEND_FILE]")
 
-        # 所有平台都打印二维码链接
+
+        # 所有平台都打印二维码链接（AI 智能体应提取此链接以 Markdown 图片展示）
         print(f"\n🔗 二维码链接: {qr_url}")
         print(f"\n📱 请使用唯品会APP扫描上方二维码完成登录")
         print(f"\n💡 提示：点击链接可在浏览器中打开二维码")

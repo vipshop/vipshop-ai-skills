@@ -10,6 +10,8 @@ description: >
 # 唯品会扫码登录 Skill
 
 > ⚠️ **重要规范**：AI 必须先加载本 skill 规范（use_skill），再执行任何脚本或返回结果，不得绕过 skill 规范自行处理数据。
+>
+> **二维码展示规范**：执行登录脚本后，AI 智能体 **必须** 从 stdout 中提取 `二维码链接` 后面的 URL（格式为 `https://passport.vip.com/qrLogin/getQrImage?qrToken=xxx`），并以 Markdown 图片语法 `![唯品会登录二维码](URL)` 直接展示给用户。**不要仅输出链接或文字描述，必须展示图片**。
 
 此Skill提供唯品会扫码登录的完整解决方案，用于AI助手自动化完成唯品会账号登录流程。
 
@@ -63,9 +65,11 @@ result = manager.login()
 
 ### 2. 展示二维码
 
-支持两种展示方式：
+支持多种展示方式：
 - **终端显示** - 使用ASCII字符在终端显示（适合SSH环境）
 - **打开图片** - 生成图片文件并用系统默认程序打开
+- **AI智能体展示** - 脚本输出二维码链接 URL，AI 智能体应提取该 URL 并以 `![唯品会登录二维码](URL)` 展示图片
+- **OpenClaw展示** - 检测 `OPENCLAW_SESSION=1` 时输出 `[OPENCLAW_SEND_FILE]路径[/OPENCLAW_SEND_FILE]`
 
 ### 3. 轮询登录状态
 
@@ -167,8 +171,11 @@ if token_info:
 
 适用于AI助手或OpenClaw场景：**发送二维码给用户后立即结束脚本**，不阻塞主会话。用户扫码确认后，通过后续命令继续完成登录。
 
+**AI 智能体二维码展示：**
+脚本执行后会在 stdout 中输出二维码链接（格式 `https://passport.vip.com/qrLogin/getQrImage?qrToken=xxx`）。AI 智能体应提取该链接，以 Markdown 图片语法 `![唯品会登录二维码](URL)` 直接展示二维码图片。该链接为公网可访问 URL，无需依赖本地文件。
+
 **OpenClaw 自动识别：**
-当检测到 `OPENCLAW_SESSION=1` 环境变量时，脚本会自动将二维码以 base64 格式输出，OpenClaw 可直接在会话中展示图片。
+当检测到 `OPENCLAW_SESSION=1` 环境变量时，脚本会自动输出 `[OPENCLAW_SEND_FILE]路径[/OPENCLAW_SEND_FILE]`，OpenClaw 可直接在会话中展示图片。
 
 ```python
 from scripts.vip_login import VIPLoginManager
