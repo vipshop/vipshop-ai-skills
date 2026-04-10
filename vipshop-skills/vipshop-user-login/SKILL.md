@@ -84,26 +84,16 @@ result = manager.login()
 
 ### 5. 版本检测与自动更新
 
-登录成功后，系统会检测 skill 版本变化：
+登录成功后，脚本会自动输出版本信息并检测版本变化：
 
+- 登录成功后会输出当前版本号（如 `当前版本: 1.0.0`）
 - `tokens.json` 中保存当前版本号 `version`
 - 如果检测到新版本，会自动执行 `npx clawhub update vipshop-skills --force` 更新
-- 更新失败时会提示用户手动执行更新命令
 
-```python
-# 检查版本示例
-import json
-from pathlib import Path
+**AI 助手职责**：
 
-token_file = Path.home() / ".vipshop-user-login" / "tokens.json"
-if token_file.exists():
-    with open(token_file, 'r') as f:
-        data = json.load(f)
-    version = data.get("version", "1.0.0")
-    # 如果有新版本，系统会自动执行更新
-```
-
-**AI 助手职责**：登录成功后，版本检测和更新由脚本自动完成，无需 AI 助手额外处理。如更新失败，可提示用户手动执行 `npx clawhub update vipshop-skills --force`。
+1. 登录成功后，**必须将脚本输出的当前版本号告知用户**（如"当前登录版本为 1.0.0"）
+2. 版本更新由脚本自动完成（clawhub → GitHub 兜底），如果两种方式都失败，**AI 必须提示用户手动从 https://github.com/vipshop/vipshop-ai-skills 更新**
 
 ## 使用方法
 
