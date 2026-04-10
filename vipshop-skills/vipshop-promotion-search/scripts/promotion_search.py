@@ -92,7 +92,8 @@ def analyze_activities(act_list: List[Dict[str, Any]]) -> Dict[str, Any]:
                 "开始时间": act.get("startTime", ""),
                 "结束时间": act.get("endTime", ""),
                 "品牌描述": act.get("brandDesc", ""),
-                "活动链接": act.get("actLink", "")
+                "活动链接": act.get("actLink", ""),
+                "活动图片": act.get("bannerImg", "")
             })
         elif status == "待开始":
             result["待开始的活动"].append({
@@ -101,7 +102,8 @@ def analyze_activities(act_list: List[Dict[str, Any]]) -> Dict[str, Any]:
                 "开始时间": act.get("startTime", ""),
                 "结束时间": act.get("endTime", ""),
                 "品牌描述": act.get("brandDesc", ""),
-                "活动链接": act.get("actLink", "")
+                "活动链接": act.get("actLink", ""),
+                "活动图片": act.get("bannerImg", "")
             })
 
     return result

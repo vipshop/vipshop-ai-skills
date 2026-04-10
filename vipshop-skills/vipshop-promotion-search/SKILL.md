@@ -82,7 +82,7 @@ python3 ../vipshop-user-login/scripts/vip_login.py --blocking
 ### 步骤 4：展示结果
 解析 JSON 数据并格式化输出，展示活动分析总结。
 
-**显示字段**：活动名称、活动状态、活动类型、时间范围、品牌信息、活动链接
+**显示字段**：活动名称、活动状态、活动类型、时间范围、品牌信息、活动链接、活动图片
 
 ## 重要说明
 
@@ -133,11 +133,13 @@ mini大牌日：8 个
 
 ━━━ 进行中的活动 ━━━
 🔥 欧莱雅大众（今日大牌）
+🖼️ 图片：http://ms.vpimg1.com/upload/actpics/xxx.png
 ⏰ 04.01 10:00 - 04.05 10:00
 🏷️ 品牌：三熹玉,适乐肤,欧莱雅男士等13个品牌
 🔗 链接：https://t.vip.com/iby5me
 
 🔥 狂秒2026年3月31日20点场（狂秒）
+🖼️ 图片：http://ms.vpimg1.com/upload/actpics/xxx.png
 ⏰ 03.31 20:00 - 04.01 20:00
 🏷️ 品牌：ELLE,苏泊尔
 🔗 链接：https://t.vip.com/7baqm2
@@ -146,6 +148,7 @@ mini大牌日：8 个
 
 ━━━ 待开始的活动 ━━━
 ⏰ 好奇20260402（今日大牌）
+🖼️ 图片：http://ms.vpimg1.com/upload/actpics/xxx.png
 ⏰ 04.02 10:00 - 04.03 10:00
 🏷️ 品牌：好奇
 🔗 链接：https://t.vip.com/mMJRVf
@@ -294,6 +297,7 @@ python3 scripts/promotion_search.py
 - `endTime`：结束时间
 - `brandDesc`：品牌描述
 - `actLink`：活动链接
+- `bannerImg`：活动图片
 
 ## 注意事项
 
