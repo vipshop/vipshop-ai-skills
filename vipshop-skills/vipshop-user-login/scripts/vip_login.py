@@ -15,7 +15,6 @@ import sys
 import time
 import os
 import argparse
-import subprocess
 from typing import Optional, Callable, Dict, Any
 from dataclasses import dataclass
 from pathlib import Path
@@ -440,7 +439,7 @@ class VIPLoginManager:
 
         # 先检查版本更新，确定最终写入的版本号
         update_ok = self._check_version_update(old_version, new_version)
-        # 更新失败时保留旧版本号，确保下次登录能再次触发更新提示
+        # 更新提示未处理时保留旧版本号，确保下次登录能再次触发提醒
         final_version = new_version if update_ok else (old_version or new_version)
 
         # 保存登录态（只包含必要的cookie）
@@ -458,7 +457,7 @@ class VIPLoginManager:
         # 输出版本信息
         print(f"   当前版本: {final_version}")
         if not update_ok:
-            print(f"   版本更新未完成，当前仍为旧版本，下次登录将再次提示更新")
+            print(f"   检测到可用新版本，请按受控发布流程手动更新；当前仍使用旧版本，下次登录将再次提醒")
 
         # 清理二维码文件
         self.qr_client.cleanup_qr_files()
@@ -649,7 +648,7 @@ class VIPLoginManager:
 
         # 先检查版本更新，确定最终写入的版本号
         update_ok = self._check_version_update(old_version, new_version)
-        # 更新失败时保留旧版本号，确保下次登录能再次触发更新提示
+        # 更新提示未处理时保留旧版本号，确保下次登录能再次触发提醒
         final_version = new_version if update_ok else (old_version or new_version)
 
         # 保存登录态（只包含必要的cookie）
@@ -668,7 +667,7 @@ class VIPLoginManager:
         # 输出版本信息
         print(f"   当前版本: {final_version}")
         if not update_ok:
-            print(f"   版本更新未完成，当前仍为旧版本，下次登录将再次提示更新")
+            print(f"   检测到可用新版本，请按受控发布流程手动更新；当前仍使用旧版本，下次登录将再次提醒")
 
         # 显示过期时间
         expire_readable = token_info.expire_datetime
@@ -683,14 +682,14 @@ class VIPLoginManager:
 
     def _check_version_update(self, old_version: Optional[str], new_version: Optional[str]) -> bool:
         """
-        检测版本变化并自动更新
+        检测版本变化并提示手动更新
 
         Args:
             old_version: 旧版本号
             new_version: 新版本号
 
         Returns:
-            True 表示更新成功或无需更新，False 表示更新失败
+            True 表示无需更新，False 表示检测到新版本且需要手动更新
         """
         logger.info("version_check_start", old_version=str(old_version), new_version=str(new_version))
 
@@ -698,17 +697,14 @@ class VIPLoginManager:
             logger.warning("version_check_skip", reason="new_version为空")
             return True
 
-        # 如果是新登录（没有旧版本），不触发自动更新，但正常写入版本号
         if not old_version:
             logger.info("version_check_skip", reason="old_version为空(新登录)")
             return True
 
-        # 版本相同，不提示
         if old_version == new_version:
             logger.info("version_check_skip", reason=f"版本相同: {old_version}")
             return True
 
-        # 使用语义化版本比较，只有新版本 > 旧版本时才提示更新
         try:
             old_ver = parse_version(old_version)
             new_ver = parse_version(new_version)
@@ -716,64 +712,15 @@ class VIPLoginManager:
             if new_ver <= old_ver:
                 logger.info("version_check_skip", reason=f"新版本未升级: {new_ver} <= {old_ver}")
                 return True
-        except Exception as e:
-            # 解析失败时，降级为字符串比较
-            logger.warning("version_parse_failed", error=str(e), fallback="字符串比较")
+        except Exception as error:
+            logger.warning("version_parse_failed", error=str(error), fallback="字符串比较")
             if old_version == new_version:
                 return True
 
-        # 版本不同，自动执行更新
-        logger.info("version_update_detected", old_version=old_version, new_version=new_version)
+        logger.info("version_update_manual_required", old_version=old_version, new_version=new_version)
         print(f"\n📢 检测到新版本: {old_version} -> {new_version}")
-        print(f"   正在自动更新...")
-        try:
-            subprocess.run(
-                "npx clawhub update vipshop-skills --force",
-                shell=True, check=True, timeout=120,
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
-            )
-            logger.info("version_update_success", old_version=old_version, new_version=new_version)
-            return True
-        except Exception as e:
-            logger.error("version_update_clawhub_failed", error=str(e))
-            print(f"   clawhub 更新失败，正在尝试从 GitHub 安装...")
-
-        # 兜底：从 GitHub 下载 ZIP 并覆盖安装
-        try:
-            import tempfile
-            import shutil
-            import zipfile
-            import urllib.request
-
-            repo_url = "https://github.com/vipshop/vipshop-ai-skills/archive/refs/heads/main.zip"
-            # 找到 vipshop-skills/ 目录（scripts/ -> vipshop-user-login/ -> vipshop-skills/）
-            skill_dir = Path(__file__).resolve().parent.parent.parent
-
-            with tempfile.TemporaryDirectory() as tmp_dir:
-                zip_path = Path(tmp_dir) / "repo.zip"
-                print(f"   正在从 GitHub 下载...")
-                urllib.request.urlretrieve(repo_url, str(zip_path))
-
-                with zipfile.ZipFile(str(zip_path), 'r') as zf:
-                    zf.extractall(tmp_dir)
-
-                # GitHub ZIP 解压后目录名为 vipshop-ai-skills-main
-                # 覆盖整个 vipshop-skills/ 目录（包含所有子skill）
-                src_dir = Path(tmp_dir) / "vipshop-ai-skills-main" / "vipshop-skills"
-                if src_dir.exists():
-                    shutil.copytree(src_dir, skill_dir, dirs_exist_ok=True)
-                    logger.info("version_update_github_success", old_version=old_version, new_version=new_version)
-                    print(f"   ✓ 从 GitHub 安装新版本成功")
-                    return True
-                else:
-                    logger.error("version_update_github_dir_not_found", src_dir=str(src_dir))
-                    print(f"   GitHub 仓库中未找到 skill 目录")
-                    return False
-        except Exception as e2:
-            logger.error("version_update_github_failed", error=str(e2))
-            print(f"   GitHub 安装也失败: {e2}")
-            print(f"   请手动从 https://github.com/vipshop/vipshop-ai-skills 更新")
-            return False
+        print("   如需获取最新版本，请访问官方仓库：https://github.com/vipshop/vipshop-ai-skills")
+        return False
 
     def quick_login(self, where_from: str = "") -> LoginResult:
         """

@@ -86,18 +86,18 @@ result = manager.login()
 - 基于Cookie的会话保持
 - 登录态有效期与 PASSPORT_ACCESS_TOKEN cookie 一致
 
-### 5. 版本检测与自动更新
+### 5. 版本检测与更新提示
 
-登录成功后，脚本会自动输出版本信息并检测版本变化：
+登录成功后，脚本会输出版本信息并检测版本变化：
 
 - 登录成功后会输出当前版本号（如 `当前版本: 1.0.0`）
 - `tokens.json` 中保存当前版本号 `version`
-- 如果检测到新版本，会自动执行 `npx clawhub update vipshop-skills --force` 更新
+- 如果检测到新版本，脚本只会提示用户按受控发布流程手动更新，不会自动执行更新命令，也不会远程下载并覆盖本地文件；提示信息中会给出可手动执行的命令 `npx clawhub update vipshop-skills --force`
 
 **AI 助手职责**：
 
 1. 登录成功后，**必须将脚本输出的当前版本号告知用户**（如"当前登录版本为 1.0.0"）
-2. 版本更新由脚本自动完成（clawhub → GitHub 兜底），如果两种方式都失败，**AI 必须提示用户手动从 https://github.com/vipshop/vipshop-ai-skills 更新**
+2. 如果脚本提示有新版本，**AI 必须提示用户按受控发布流程手动更新**，并可转述脚本给出的手动命令 `npx clawhub update vipshop-skills --force`；如需查看最新版本，可访问 https://github.com/vipshop/vipshop-ai-skills
 
 ## 使用方法
 
@@ -238,14 +238,14 @@ if success:
     # 2. 展示二维码
     success, image_bytes, fmt = qr_client.get_qr_image(qr_token)
     qr_client.open_qr_image(image_bytes, fmt)
-    
+
     # 3. 轮询状态
     poller = StatusPoller(
         base_url="https://passport.vip.com",
         check_endpoint="/qrLogin/checkStatus"
     )
     result = poller.poll_until_complete(qr_token)
-    
+
     if result.status == LoginStatus.CONFIRMED:
         print("登录成功!")
         # 4. 保存凭证（从响应中提取 cookies）
