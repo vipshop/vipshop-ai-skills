@@ -81,7 +81,7 @@ python3 scripts/img_search.py --image-url "图片URL" --category-type "分类类
     "所有分类": [...]
   },
   "商品分析": {
-    "总计": 20,
+    "总计": 10,
     "下一页token": "xxx",
     "商品列表": [
       {
@@ -198,7 +198,7 @@ python3 scripts/img_search.py --image-url "图片URL" --category-type "分类类
 3. **商品搜索接口**
    - URL: `https://mapi-pc.vip.com/vips-mobile/rest/shopping/skill/image/product/list/v1`
    - 方式: POST
-   - 参数: api_key, app_name, categoryType, imgUrl, rect, mars_cid, pageToken(可选，用于分页), limit(固定为20) 等
+   - 参数: api_key, app_name, categoryType, imgUrl, rect, mars_cid, pageToken(可选，用于分页), limit(固定为10) 等
 
 ## 注意事项
 
@@ -224,7 +224,7 @@ A: 支持 jpg、jpeg、png、gif、bmp、webp 格式。
 A: 是的，必须先通过 `vipshop-user-login` skill 登录。
 
 **Q: 搜索结果有多少个商品？**
-A: 每页返回最多20个相似商品，可通过 pageToken 获取更多。
+A: 每页返回最多10个相似商品，可通过 pageToken 获取更多。
 
 **Q: 如何获取更多商品？**
 A: 使用返回的 `下一页token`，通过 `--page-token` 参数获取下一页数据。

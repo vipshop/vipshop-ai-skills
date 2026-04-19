@@ -320,8 +320,8 @@ def get_products(img_url: str, mars_cid: str, category_type: str, rect: str, pag
     Returns:
         商品列表
     """
-    # 每页商品数量固定为20
-    limit = 20
+    # 每页商品数量固定为10
+    limit = 10
     
     try:
         params = {
