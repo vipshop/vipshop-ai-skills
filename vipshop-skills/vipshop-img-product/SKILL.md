@@ -37,7 +37,7 @@ description: 唯品会（vip.com）图片搜索商品技能。当用户想通过
 在执行搜索前，AI 必须先检测登录状态：
 - 检查 `~/.vipshop-user-login/tokens.json` 是否存在且有效
 - **如果已登录**：直接执行步骤2
-- **如果未登录**：自动触发登录流程（参考 vipshop-order-search skill 的登录处理方式）
+- **如果未登录**：自动触发 `vipshop-user-login` skill 完成登录流程
 
 ### 步骤 2：接收输入
 需要用户提供本地图片文件路径。

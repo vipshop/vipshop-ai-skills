@@ -105,20 +105,33 @@ vipshop-skills/
 ├── SKILL.md                          # 本文件（父级 skill 说明）
 ├── vipshop-user-login/              # 用户登录子技能
 │   ├── SKILL.md
+│   ├── requirements.txt
 │   ├── scripts/
-│   │   └── vip_login.py
-│   ├── references/
-│   └── requirements.txt
+│   │   ├── vip_login.py
+│   │   ├── qr_code_client.py
+│   │   ├── token_manager.py
+│   │   ├── status_poller.py
+│   │   ├── mars_cid_generator.py
+│   │   └── logger.py
+│   └── references/
+│       ├── api_reference.md
+│       └── integration_guide.md
 ├── vipshop-product-search/          # 商品搜索子技能
 │   ├── SKILL.md
 │   ├── README.md
 │   └── scripts/
-│       └── search.py
+│       ├── search.py
+│       ├── mars_cid_generator.py
+│       ├── exchange_link_builder.py
+│       └── logger.py
 ├── vipshop-product-detail/          # 商品详情查询子技能
 │   ├── SKILL.md
 │   ├── README.md
 │   └── scripts/
-│       └── detail.py
+│       ├── detail.py
+│       ├── mars_cid_generator.py
+│       ├── exchange_link_builder.py
+│       └── logger.py
 ├── vipshop-promotion-search/        # 促销活动搜索子技能
 │   ├── SKILL.md
 │   └── scripts/
@@ -126,7 +139,8 @@ vipshop-skills/
 └── vipshop-img-product/             # 图片搜索商品子技能
     ├── SKILL.md
     └── scripts/
-        └── img_search.py
+        ├── img_search.py
+        └── exchange_link_builder.py
 ```
 
 ## 使用示例
@@ -138,7 +152,7 @@ vipshop-skills/
 1. 检测登录状态（自动）
 2. 如果未登录，自动触发 `vipshop-user-login` 完成登录
 3. 执行 `vipshop-product-search` 搜索连衣裙
-4. 展示搜索结果（20 个商品）
+4. 展示搜索结果（10 个商品）
 
 **用户**：查询第3个商品
 
