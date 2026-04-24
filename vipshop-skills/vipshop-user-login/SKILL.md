@@ -11,7 +11,7 @@ description: >
 
 > ⚠️ **重要规范**：AI 必须先加载本 skill 规范（use_skill），再执行任何脚本或返回结果，不得绕过 skill 规范自行处理数据。
 >
-> **二维码展示规范**：执行登录脚本后，AI 智能体 **必须** 从 stdout 中提取 `二维码链接` 后面的 URL（格式为 `https://passport.vip.com/qrLogin/getQrImage?qrToken=xxx`），并以 Markdown 图片语法 `![唯品会登录二维码](URL)` 直接展示给用户。**不要仅输出链接或文字描述，必须展示图片**。
+> **二维码展示规范**：执行登录脚本后，AI 智能体 **必须优先** 从 stdout 中提取机器可读标记：`[VIPSHOP_QR_PAYLOAD_BEGIN]` 与 `[VIPSHOP_QR_PAYLOAD_END]` 之间的 JSON，读取其中的 `qrImageUrl` 字段，并以 Markdown 图片语法 `![唯品会登录二维码](URL)` 直接展示给用户。仅当该标记不存在时，才允许回退到提取 `二维码链接` 后面的 URL。**不要仅输出链接或文字描述，必须展示图片**。
 
 此Skill提供唯品会扫码登录的完整解决方案，用于AI助手自动化完成唯品会账号登录流程。
 
@@ -172,7 +172,15 @@ if token_info:
 适用于AI助手或OpenClaw场景：**发送二维码给用户后立即结束脚本**，不阻塞主会话。用户扫码确认后，通过后续命令继续完成登录。
 
 **AI 智能体二维码展示：**
-脚本执行后会在 stdout 中输出二维码链接（格式 `https://passport.vip.com/qrLogin/getQrImage?qrToken=xxx`）。AI 智能体应提取该链接，以 Markdown 图片语法 `![唯品会登录二维码](URL)` 直接展示二维码图片。该链接为公网可访问 URL，无需依赖本地文件。
+脚本执行后会在 stdout 中输出以下机器可读片段：
+
+```text
+[VIPSHOP_QR_PAYLOAD_BEGIN]
+{"qrToken": "10000-xxx", "qrImageUrl": "https://passport.vip.com/qrLogin/getQrImage?qrToken=10000-xxx"}
+[VIPSHOP_QR_PAYLOAD_END]
+```
+
+AI 智能体应优先提取该 JSON 中的 `qrImageUrl`，并以 Markdown 图片语法 `![唯品会登录二维码](URL)` 直接展示二维码图片。仅当该标记不存在时，才回退到读取 `二维码链接:` 后面的 URL。该链接为公网可访问 URL，无需依赖本地文件。
 
 **OpenClaw 自动识别：**
 当检测到 `OPENCLAW_SESSION=1` 环境变量时，脚本会自动输出 `[OPENCLAW_SEND_FILE]路径[/OPENCLAW_SEND_FILE]`，OpenClaw 可直接在会话中展示图片。

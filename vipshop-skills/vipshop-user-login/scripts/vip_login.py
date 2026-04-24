@@ -15,6 +15,7 @@ import sys
 import time
 import os
 import argparse
+import json
 from typing import Optional, Callable, Dict, Any
 from dataclasses import dataclass
 from pathlib import Path
@@ -128,6 +129,27 @@ class VIPLoginManager:
         )
 
         self.token_manager = TokenManager()
+
+    # AI-Generated Begin
+    def _emit_qr_stdout_payload(self, qr_token: str, qr_url: str):
+        """输出机器可读的二维码负载，避免智能体误提取 qrToken。"""
+        payload = json.dumps(
+            {
+                "qrToken": qr_token,
+                "qrImageUrl": qr_url,
+            },
+            ensure_ascii=False,
+        )
+        print("\n[VIPSHOP_QR_TOKEN_BEGIN]")
+        print(qr_token)
+        print("[VIPSHOP_QR_TOKEN_END]")
+        print("[VIPSHOP_QR_URL_BEGIN]")
+        print(qr_url)
+        print("[VIPSHOP_QR_URL_END]")
+        print("[VIPSHOP_QR_PAYLOAD_BEGIN]")
+        print(payload)
+        print("[VIPSHOP_QR_PAYLOAD_END]")
+    # AI-Generated End
 
     def _validate_qr_token_format(self, qr_token: str) -> bool:
         """校验 qrToken 格式是否正确
@@ -279,6 +301,7 @@ class VIPLoginManager:
         if os.environ.get("OPENCLAW_SESSION") == "1" and qr_file_path:
             print(f"\n[OPENCLAW_SEND_FILE]{qr_file_path}[/OPENCLAW_SEND_FILE]")
 
+        self._emit_qr_stdout_payload(qr_token, qr_url)
 
         # 所有平台都打印二维码链接（AI 智能体应提取此链接以 Markdown 图片展示）
         print(f"\n🔗 二维码链接: {qr_url}")
